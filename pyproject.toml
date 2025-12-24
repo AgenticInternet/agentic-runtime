@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentic-runtime"
+version = "0.1.0"
+description = "Agentic runtime with Agno, OpenRouter, Daytona sandbox, and MCP support"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "agno>=1.0.0",
+    "agno-storage>=1.0",
+    "daytona>=0.128.1",
+    "daytona-sdk>=0.1.0",
+    "mcp>=1.25.0",
+    "openai>=2.14.0",
+    "python-dotenv>=1.0.0",
+    "sqlalchemy>=2.0.45",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.hatch.build.targets.wheel]
+packages = ["core"]
