@@ -8,7 +8,14 @@ Requirements:
 - MCP server URL configured
 """
 
+import asyncio
 from dotenv import load_dotenv
+from pathlib import Path
+import sys
+
+# Add the project root to PYTHONPATH
+root_dir = Path(__file__).resolve().parent.parent
+sys.path.append(str(root_dir))
 
 load_dotenv()
 
@@ -16,20 +23,20 @@ from core import build_agent
 from core.policies import AgentSpec, CodeActPolicy, McpPolicy
 
 
-def main():
-    # Uses default model: google/gemini-3-flash-preview
+async def main():
     spec = AgentSpec(
+        model_id="z-ai/glm-4.7",
         codeact=CodeActPolicy(enabled=False),
         mcp=McpPolicy(
             enabled=True,
             transport="streamable-http",
-            url="http://localhost:8080/mcp",  # Your MCP server URL
+            url="https://mcp-server-google-se-e9b57459.alpic.live",
         ),
     )
 
     agent = build_agent(spec)
-    agent.print_response("List available tools from the MCP server", stream=True)
+    await agent.aprint_response("Perform a search a the current groq situation with NVIDIA", stream=True)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
