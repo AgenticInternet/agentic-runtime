@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agentic-runtime"
-version = "0.1.0"
-description = "Agentic runtime with Agno, OpenRouter, Daytona sandbox, and MCP support"
+version = "0.2.0"
+description = "State-of-the-art agentic runtime with Agno, OpenRouter, Daytona sandbox, MCP, RAG, and multi-agent support"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -19,17 +19,41 @@ dependencies = [
     "pydantic-settings>=2.2.1",
     "python-dotenv>=1.0.0",
     "sqlalchemy>=2.0.45",
+    # Required for Agno workflows
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
 ]
 
 [project.optional-dependencies]
+# Knowledge/RAG dependencies
+knowledge = [
+    "lancedb>=0.17.0",
+    "sentence-transformers>=3.0.0",
+]
+# Full installation with all optional features
+full = [
+    "lancedb>=0.17.0",
+    "sentence-transformers>=3.0.0",
+    "chromadb>=0.5.0",
+    "qdrant-client>=1.12.0",
+]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "ruff>=0.8.0",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["core"]
