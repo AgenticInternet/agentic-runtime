@@ -5,6 +5,11 @@ Simple agent with local tools only (no sandbox, no MCP).
 Good for: Q&A, simple tasks, testing.
 """
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from dotenv import load_dotenv
 
 load_dotenv()

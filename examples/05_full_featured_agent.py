@@ -12,9 +12,7 @@ Requirements:
 import sys
 from pathlib import Path
 
-# Add the project root to PYTHONPATH
-root_dir = Path(__file__).resolve().parent.parent
-sys.path.append(str(root_dir))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dotenv import load_dotenv
 

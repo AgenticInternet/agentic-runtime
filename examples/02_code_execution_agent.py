@@ -8,6 +8,11 @@ Requirements:
 - DAYTONA_API_KEY in .env file
 """
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,8 +22,9 @@ from core.policies import AgentSpec, CodeActPolicy, McpPolicy
 
 
 def main():
-    # Uses default model: google/gemini-3-flash-preview
+    # Uses fast model for code execution
     spec = AgentSpec(
+        model_id="minimax/minimax-m2.1",
         codeact=CodeActPolicy(enabled=True),
         mcp=McpPolicy(enabled=False),
     )
@@ -27,7 +33,7 @@ def main():
 
     # Simple code execution
     agent.print_response(
-        "Write and run Python code to calculate the first 10 Fibonacci numbers",
+        "How many r in strawbery, build a code for that specific task using syntax or execution base approach",
         stream=True,
     )
 

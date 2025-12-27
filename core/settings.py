@@ -1,23 +1,20 @@
-import os
-from dataclasses import dataclass
 from typing import Optional
 
-
-@dataclass
-class Settings:
-    openrouter_api_key: Optional[str] = None
-    daytona_api_key: Optional[str] = None
-    daytona_api_url: Optional[str] = None
-    mcp_url: Optional[str] = None
-
-    @classmethod
-    def from_env(cls) -> "Settings":
-        return cls(
-            openrouter_api_key=os.getenv("OPENROUTER_API_KEY"),
-            daytona_api_key=os.getenv("DAYTONA_API_KEY"),
-            daytona_api_url=os.getenv("DAYTONA_API_URL"),
-            mcp_url=os.getenv("MCP_URL"),
-        )
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-settings = Settings.from_env()
+class Settings(BaseSettings):
+    openrouter_api_key: Optional[str] = Field(default=None, alias="OPENROUTER_API_KEY")
+    daytona_api_key: Optional[str] = Field(default=None, alias="DAYTONA_API_KEY")
+    daytona_api_url: Optional[str] = Field(default=None, alias="DAYTONA_API_URL")
+    mcp_url: Optional[str] = Field(default=None, alias="MCP_URL")
+
+    model_config = SettingsConfigDict(
+        frozen=True,
+        extra="ignore",
+        populate_by_name=True,
+    )
+
+
+settings = Settings()

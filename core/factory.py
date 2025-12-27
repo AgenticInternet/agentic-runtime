@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,6 +16,7 @@ from .prompts.system import DEFAULT_SYSTEM_INSTRUCTIONS
 
 
 def build_agent(spec: AgentSpec) -> Agent:
+    Path("tmp").mkdir(parents=True, exist_ok=True)
     db = SqliteDb(db_file="tmp/agents.db")
 
     tools = []

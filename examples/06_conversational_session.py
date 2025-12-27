@@ -8,6 +8,11 @@ Requirements:
 - DAYTONA_API_KEY in .env file (if using code execution)
 """
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,9 +22,9 @@ from core.policies import AgentSpec, CodeActPolicy, ContextPolicy
 
 
 def main():
-    # Uses useful model for conversations: z-ai/glm-4.7
+    # Uses useful model for conversations: minimax/minimax-m2.1
     spec = AgentSpec(
-        model_id="z-ai/glm-4.7",
+        model_id="minimax/minimax-m2.1",
         user_id="interactive_user",
         session_id="interactive_session",
         context=ContextPolicy(

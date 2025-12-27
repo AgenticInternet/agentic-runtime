@@ -9,13 +9,12 @@ Requirements:
 """
 
 import asyncio
-from dotenv import load_dotenv
-from pathlib import Path
 import sys
+from pathlib import Path
 
-# Add the project root to PYTHONPATH
-root_dir = Path(__file__).resolve().parent.parent
-sys.path.append(str(root_dir))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -35,7 +34,7 @@ async def main():
     )
 
     agent = build_agent(spec)
-    await agent.aprint_response("Perform a search a the current groq situation with NVIDIA", stream=True)
+    await agent.aprint_response("Perform a search about the current groq situation with NVIDIA", stream=True)
 
 
 if __name__ == "__main__":
