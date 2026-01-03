@@ -1,5 +1,5 @@
 from core.factory import build_agent
-from core.policies import AgentSpec, McpPolicy, CodeActPolicy
+from core.policies import AgentSpec, CodeActPolicy
 
 
 def test_conformance_daytona_enabled():

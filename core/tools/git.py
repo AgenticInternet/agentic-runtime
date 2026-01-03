@@ -5,7 +5,6 @@ Git operations for agentic coding workflows.
 """
 
 import subprocess
-from pathlib import Path
 from typing import Any, List, Optional
 
 from agno.tools import tool
@@ -80,12 +79,12 @@ def build_git_tools(spec: AgentSpec) -> List[Any]:
             args.append("--short")
         else:
             args.append("--porcelain=v1")
-        
+
         result = _run_git_command(args, workspace_root)
-        
+
         if not result["success"]:
             return result
-        
+
         if short or "--porcelain" in str(args):
             lines = result["stdout"].split("\n") if result["stdout"] else []
             changes = []
@@ -99,7 +98,7 @@ def build_git_tools(spec: AgentSpec) -> List[Any]:
                 "changes": changes,
                 "clean": len(changes) == 0,
             }
-        
+
         return result
 
     @tool
@@ -120,25 +119,25 @@ def build_git_tools(spec: AgentSpec) -> List[Any]:
             Dict with diff output
         """
         args = ["diff", "--no-color"]
-        
+
         if staged:
             args.append("--cached")
-        
+
         if commit:
             args.append(commit)
-        
+
         if path:
             args.extend(["--", path])
-        
+
         result = _run_git_command(args, workspace_root)
-        
+
         if result["success"]:
             return {
                 "success": True,
                 "diff": result["stdout"],
                 "has_changes": bool(result["stdout"]),
             }
-        
+
         return result
 
     @tool
@@ -159,20 +158,20 @@ def build_git_tools(spec: AgentSpec) -> List[Any]:
             Dict with commit history
         """
         args = ["log", f"-n{max_count}"]
-        
+
         if oneline:
             args.append("--oneline")
         else:
             args.append("--format=%H|%an|%ae|%s|%ai")
-        
+
         if path:
             args.extend(["--", path])
-        
+
         result = _run_git_command(args, workspace_root)
-        
+
         if not result["success"]:
             return result
-        
+
         if oneline:
             lines = result["stdout"].split("\n") if result["stdout"] else []
             commits = []
@@ -216,21 +215,21 @@ def build_git_tools(spec: AgentSpec) -> List[Any]:
             Dict with branch information
         """
         args = ["branch", "--no-color"]
-        
+
         if list_all:
             args.append("-a")
         elif list_remote:
             args.append("-r")
-        
+
         result = _run_git_command(args, workspace_root)
-        
+
         if not result["success"]:
             return result
-        
+
         lines = result["stdout"].split("\n") if result["stdout"] else []
         branches = []
         current = None
-        
+
         for line in lines:
             if line.strip():
                 is_current = line.startswith("*")
@@ -238,7 +237,7 @@ def build_git_tools(spec: AgentSpec) -> List[Any]:
                 branches.append(name)
                 if is_current:
                     current = name
-        
+
         return {
             "success": True,
             "branches": branches,
@@ -258,12 +257,12 @@ def build_git_tools(spec: AgentSpec) -> List[Any]:
             Dict with commit information
         """
         args = ["show", "--no-color", commit]
-        
+
         if stat_only:
             args.append("--stat")
-        
+
         result = _run_git_command(args, workspace_root)
-        
+
         return result
 
     @tool
@@ -280,19 +279,19 @@ def build_git_tools(spec: AgentSpec) -> List[Any]:
         """
         if not spec.coding.allow_git_write:
             return {"error": "Git write operations are disabled"}
-        
+
         if all_changes:
             args = ["add", "-A"]
         else:
             if not paths:
                 return {"error": "No paths specified"}
             args = ["add"] + paths
-        
+
         result = _run_git_command(args, workspace_root)
-        
+
         if result["success"]:
             return {"success": True, "staged": paths if not all_changes else "all"}
-        
+
         return result
 
     @tool
@@ -309,17 +308,17 @@ def build_git_tools(spec: AgentSpec) -> List[Any]:
         """
         if not spec.coding.allow_git_write:
             return {"error": "Git write operations are disabled"}
-        
+
         if not message.strip():
             return {"error": "Commit message cannot be empty"}
-        
+
         args = ["commit", "-m", message]
-        
+
         if amend:
             args.append("--amend")
-        
+
         result = _run_git_command(args, workspace_root)
-        
+
         if result["success"]:
             hash_result = _run_git_command(["rev-parse", "HEAD"], workspace_root)
             return {
@@ -327,7 +326,7 @@ def build_git_tools(spec: AgentSpec) -> List[Any]:
                 "message": message,
                 "hash": hash_result["stdout"][:8] if hash_result["success"] else None,
             }
-        
+
         return result
 
     @tool
@@ -344,17 +343,17 @@ def build_git_tools(spec: AgentSpec) -> List[Any]:
             Dict with blame information
         """
         args = ["blame", "--porcelain"]
-        
+
         if start_line and end_line:
             args.extend(["-L", f"{start_line},{end_line}"])
-        
+
         args.append(path)
-        
+
         result = _run_git_command(args, workspace_root)
-        
+
         if not result["success"]:
             return result
-        
+
         return {
             "success": True,
             "blame": result["stdout"],
@@ -368,8 +367,8 @@ def build_git_tools(spec: AgentSpec) -> List[Any]:
         git_show,
         git_blame,
     ]
-    
+
     if spec.coding.allow_git_write:
         tools.extend([git_add, git_commit])
-    
+
     return tools

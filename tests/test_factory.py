@@ -7,10 +7,9 @@ Tests for agent, team, and workflow building.
 import pytest
 
 from core import (
-    AgentSpec,
     AgentRole,
+    AgentSpec,
     CodeActPolicy,
-    KnowledgePolicy,
     McpPolicy,
     ReasoningPolicy,
     TeamPolicy,
@@ -20,7 +19,6 @@ from core import (
     build_team,
     build_workflow,
 )
-
 
 # =============================================================================
 # Agent Factory Tests

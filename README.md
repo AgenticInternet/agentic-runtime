@@ -105,27 +105,43 @@ agent = build_agent(spec)
 agent.print_response("Solve this step by step: ...", stream=True)
 ```
 
-### Agentic Coding Agent
+### Agentic Coding Agent (Daytona Sandbox)
 
 ```python
-from core import build_agent, create_coding_spec
+from agno.agent import Agent
+from agno.models.openrouter import OpenRouter
+from agno.tools.daytona import DaytonaTools
 
-# Create an agent with file operations, git, and code execution
-spec = create_coding_spec(
-    workspace_root=".",
-    enable_codeact=True,  # Enable Daytona sandbox
-    allow_write=True,     # Allow file modifications
-    allow_git_write=False # Read-only git by default
+# Create an agent that works entirely in an isolated Daytona sandbox
+# Clones a GitHub repo and performs all operations there
+agent = Agent(
+    name="coding_agent",
+    model=OpenRouter(id="anthropic/claude-sonnet-4"),
+    tools=[DaytonaTools(persistent=True, auto_stop_interval=60)],
+    instructions=[
+        "You work in a Daytona sandbox at /home/daytona.",
+        "Clone repos with: git clone <url> /home/daytona/repo",
+        "All file operations happen in the sandbox.",
+    ],
 )
 
-agent = build_agent(spec)
+# Agent clones repo and analyzes code in the sandbox
 agent.print_response(
-    "Analyze the codebase structure and suggest improvements",
-    stream=True
+    """Clone https://github.com/user/repo.git and:
+    1. List the project structure
+    2. Read the README
+    3. Show recent git history
+    4. Identify potential improvements""",
+    stream=True,
 )
 ```
 
-**Available coding tools:**
+**Daytona Sandbox Operations:**
+- `run_shell_command` - Execute bash commands (git, ls, grep, etc.)
+- `run_code` - Execute Python code in sandbox
+- `create_file`, `read_file`, `list_files`, `delete_file` - File operations
+
+**Local Coding Tools (via `create_coding_spec`):**
 - `read_file`, `write_file`, `edit_file` - File operations with line ranges
 - `list_directory`, `find_files` - Directory navigation and glob patterns
 - `grep` - Regex-based code search with context
@@ -243,10 +259,15 @@ See the `examples/` directory for complete examples:
 uv run python examples/01_basic_agent.py
 
 # Run the agentic coding agent with different modes
+# Works in Daytona sandbox, cloning GitHub repos
 uv run python examples/09_agentic_coding_agent.py --mode analyze
 uv run python examples/09_agentic_coding_agent.py --mode refactor
-uv run python examples/09_agentic_coding_agent.py --mode debug
+uv run python examples/09_agentic_coding_agent.py --mode test
+uv run python examples/09_agentic_coding_agent.py --mode feature
 uv run python examples/09_agentic_coding_agent.py --mode interactive
+
+# Use a custom GitHub repository
+uv run python examples/09_agentic_coding_agent.py --repo https://github.com/owner/repo.git --branch main
 ```
 
 ## Testing

@@ -4,7 +4,6 @@ Agentic Coding Tools
 File manipulation and code search tools for agentic coding workflows.
 """
 
-import fnmatch
 import os
 import re
 from pathlib import Path
@@ -19,10 +18,10 @@ def _validate_path(path: str, workspace_root: str) -> Path:
     """Validate path is within workspace and return resolved Path."""
     resolved = Path(path).resolve()
     workspace = Path(workspace_root).resolve()
-    
+
     if not str(resolved).startswith(str(workspace)):
         raise ValueError(f"Path {path} is outside workspace root {workspace_root}")
-    
+
     return resolved
 
 
@@ -82,36 +81,36 @@ def build_coding_tools(spec: AgentSpec) -> List[Any]:
         try:
             if not os.path.isabs(path):
                 path = os.path.join(workspace_root, path)
-            
+
             file_path = _validate_path(path, workspace_root)
-            
+
             if not file_path.exists():
                 return {"error": f"File not found: {path}"}
-            
+
             if not file_path.is_file():
                 return {"error": f"Not a file: {path}"}
-            
+
             if file_path.stat().st_size > max_file_size:
                 return {"error": f"File too large (max {spec.coding.max_file_size_kb}KB)"}
-            
+
             if _is_binary_file(file_path):
                 return {"error": "Cannot read binary file"}
-            
+
             with open(file_path, "r", encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()
-            
+
             total_lines = len(lines)
-            
+
             if start_line is not None or end_line is not None:
                 start = (start_line or 1) - 1
                 end = end_line or total_lines
                 lines = lines[max(0, start):min(total_lines, end)]
-            
+
             numbered_lines = [
                 f"{i + (start_line or 1)}: {line.rstrip()}"
                 for i, line in enumerate(lines)
             ]
-            
+
             return {
                 "content": "\n".join(numbered_lines),
                 "line_count": total_lines,
@@ -136,19 +135,19 @@ def build_coding_tools(spec: AgentSpec) -> List[Any]:
         """
         if not spec.coding.allow_write:
             return {"error": "Write operations are disabled"}
-        
+
         try:
             if not os.path.isabs(path):
                 path = os.path.join(workspace_root, path)
-            
+
             file_path = _validate_path(path, workspace_root)
-            
+
             if create_directories:
                 file_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
-            
+
             return {
                 "success": True,
                 "path": str(file_path),
@@ -178,32 +177,32 @@ def build_coding_tools(spec: AgentSpec) -> List[Any]:
         """
         if not spec.coding.allow_write:
             return {"error": "Write operations are disabled"}
-        
+
         try:
             if not os.path.isabs(path):
                 path = os.path.join(workspace_root, path)
-            
+
             file_path = _validate_path(path, workspace_root)
-            
+
             if not file_path.exists():
                 return {"error": f"File not found: {path}"}
-            
+
             with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
-            
+
             if old_text not in content:
                 return {"error": "Text not found in file"}
-            
+
             if replace_all:
                 new_content = content.replace(old_text, new_text)
                 count = content.count(old_text)
             else:
                 new_content = content.replace(old_text, new_text, 1)
                 count = 1
-            
+
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(new_content)
-            
+
             return {
                 "success": True,
                 "path": str(file_path),
@@ -227,29 +226,29 @@ def build_coding_tools(spec: AgentSpec) -> List[Any]:
         try:
             if not os.path.isabs(path):
                 path = os.path.join(workspace_root, path)
-            
+
             dir_path = _validate_path(path, workspace_root)
-            
+
             if not dir_path.exists():
                 return {"error": f"Directory not found: {path}"}
-            
+
             if not dir_path.is_dir():
                 return {"error": f"Not a directory: {path}"}
-            
+
             entries = sorted(dir_path.iterdir(), key=lambda x: (not x.is_dir(), x.name.lower()))
-            
+
             files = []
             directories = []
-            
+
             for entry in entries:
                 if not show_hidden and entry.name.startswith("."):
                     continue
-                
+
                 if entry.is_dir():
                     directories.append(entry.name + "/")
                 else:
                     files.append(entry.name)
-            
+
             return {
                 "path": str(dir_path),
                 "directories": directories,
@@ -275,26 +274,26 @@ def build_coding_tools(spec: AgentSpec) -> List[Any]:
         try:
             if not os.path.isabs(path):
                 path = os.path.join(workspace_root, path)
-            
+
             dir_path = _validate_path(path, workspace_root)
-            
+
             if not dir_path.exists():
                 return {"error": f"Directory not found: {path}"}
-            
+
             matches = []
-            
+
             for match in dir_path.glob(pattern):
                 if match.is_file():
                     rel_path = match.relative_to(dir_path)
-                    
+
                     if max_depth is not None and len(rel_path.parts) > max_depth:
                         continue
-                    
+
                     matches.append(str(rel_path))
-                    
+
                     if len(matches) >= max_results:
                         break
-            
+
             return {
                 "pattern": pattern,
                 "base_path": str(dir_path),
@@ -329,42 +328,42 @@ def build_coding_tools(spec: AgentSpec) -> List[Any]:
         try:
             if not os.path.isabs(path):
                 path = os.path.join(workspace_root, path)
-            
+
             dir_path = _validate_path(path, workspace_root)
-            
+
             if not dir_path.exists():
                 return {"error": f"Directory not found: {path}"}
-            
+
             flags = 0 if case_sensitive else re.IGNORECASE
             regex = re.compile(pattern, flags)
-            
+
             results = []
             total_matches = 0
-            
+
             glob_pattern = f"**/{file_pattern}" if not file_pattern.startswith("**") else file_pattern
-            
+
             for file_path in dir_path.glob(glob_pattern):
                 if not file_path.is_file():
                     continue
-                
+
                 if _is_binary_file(file_path):
                     continue
-                
+
                 try:
                     with open(file_path, "r", encoding="utf-8", errors="replace") as f:
                         lines = f.readlines()
                 except Exception:
                     continue
-                
+
                 file_matches = []
-                
+
                 for i, line in enumerate(lines):
                     if regex.search(line):
                         match_info = {
                             "line_number": i + 1,
                             "content": line.rstrip(),
                         }
-                        
+
                         if context_lines > 0:
                             start = max(0, i - context_lines)
                             end = min(len(lines), i + context_lines + 1)
@@ -372,22 +371,22 @@ def build_coding_tools(spec: AgentSpec) -> List[Any]:
                                 f"{j + 1}: {lines[j].rstrip()}"
                                 for j in range(start, end)
                             ]
-                        
+
                         file_matches.append(match_info)
                         total_matches += 1
-                        
+
                         if total_matches >= max_results:
                             break
-                
+
                 if file_matches:
                     results.append({
                         "file": str(file_path.relative_to(dir_path)),
                         "matches": file_matches,
                     })
-                
+
                 if total_matches >= max_results:
                     break
-            
+
             return {
                 "pattern": pattern,
                 "base_path": str(dir_path),
@@ -414,14 +413,14 @@ def build_coding_tools(spec: AgentSpec) -> List[Any]:
         try:
             if not os.path.isabs(path):
                 path = os.path.join(workspace_root, path)
-            
+
             file_path = _validate_path(path, workspace_root)
-            
+
             if not file_path.exists():
                 return {"error": f"Path not found: {path}"}
-            
+
             stat = file_path.stat()
-            
+
             return {
                 "path": str(file_path),
                 "name": file_path.name,

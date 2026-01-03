@@ -5,10 +5,9 @@ Comprehensive policy definitions for configuring agents, teams, workflows,
 knowledge bases, reasoning, and observability.
 """
 
-from typing import Any, Dict, List, Literal, Optional, Type
+from typing import List, Literal, Optional, Type
 
 from pydantic import BaseModel, Field, field_validator
-
 
 # =============================================================================
 # Context & Memory Policies
@@ -219,7 +218,7 @@ class CodingPolicy(BaseModel):
     workspace_root: str = Field(
         default=".", description="Root directory for file operations"
     )
-    
+
     # File operations
     allow_write: bool = Field(
         default=True, description="Allow file write/edit operations"
@@ -230,7 +229,7 @@ class CodingPolicy(BaseModel):
     max_search_results: int = Field(
         default=100, ge=1, le=1000, description="Maximum search results"
     )
-    
+
     # File patterns
     include_patterns: List[str] = Field(
         default_factory=lambda: ["**/*"],
@@ -249,7 +248,7 @@ class CodingPolicy(BaseModel):
         ],
         description="Glob patterns for files to exclude"
     )
-    
+
     # Git integration
     enable_git: bool = Field(
         default=True, description="Enable git tools"
@@ -257,7 +256,7 @@ class CodingPolicy(BaseModel):
     allow_git_write: bool = Field(
         default=False, description="Allow git add/commit operations"
     )
-    
+
     # Safety settings
     require_confirmation_for_destructive: bool = Field(
         default=True, description="Require confirmation for destructive operations"

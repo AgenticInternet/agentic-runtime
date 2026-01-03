@@ -10,13 +10,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from typing import List
+
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
-from typing import List
 
 load_dotenv()
 
-from core import build_agent, AgentSpec, CodeActPolicy
+from core import AgentSpec, CodeActPolicy, build_agent
 
 
 # Define structured output schema

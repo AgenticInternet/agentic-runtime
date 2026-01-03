@@ -18,12 +18,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from core import (
-    build_team,
-    AgentSpec,
     AgentRole,
-    TeamPolicy,
+    AgentSpec,
     CodeActPolicy,
     ObservabilityPolicy,
+    TeamPolicy,
+    build_team,
 )
 
 

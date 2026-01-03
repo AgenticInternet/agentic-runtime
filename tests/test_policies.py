@@ -8,8 +8,8 @@ import pytest
 from pydantic import ValidationError
 
 from core.policies import (
-    AgentSpec,
     AgentRole,
+    AgentSpec,
     CodeActPolicy,
     CodingPolicy,
     ContextPolicy,
@@ -30,7 +30,6 @@ from core.policies import (
     create_research_spec,
     create_team_spec,
 )
-
 
 # =============================================================================
 # Context Policy Tests
