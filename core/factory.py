@@ -25,6 +25,8 @@ from .tools.mcp import build_mcp_tools
 from .tools.knowledge import build_knowledge_tools
 from .tools.reasoning import build_reasoning_tools
 from .tools.hooks import build_tool_hooks
+from .tools.coding import build_coding_tools
+from .tools.git import build_git_tools
 from .prompts.system import build_system_prompt
 
 
@@ -56,6 +58,11 @@ def _build_tools(spec: AgentSpec) -> List[Any]:
     # Reasoning tools
     if spec.reasoning.enabled and spec.reasoning.mode == "tools":
         tools.extend(build_reasoning_tools(spec))
+
+    # Coding tools (file operations, search)
+    if spec.coding.enabled:
+        tools.extend(build_coding_tools(spec))
+        tools.extend(build_git_tools(spec))
 
     return tools
 

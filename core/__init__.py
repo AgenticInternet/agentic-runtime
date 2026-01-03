@@ -19,6 +19,7 @@ from .policies import (
     KnowledgePolicy,
     ReasoningPolicy,
     StructuredOutputPolicy,
+    CodingPolicy,
     # Multi-agent policies
     TeamPolicy,
     AgentRole,
@@ -31,6 +32,7 @@ from .policies import (
     create_codeact_spec,
     create_research_spec,
     create_team_spec,
+    create_coding_spec,
 )
 
 __all__ = [
@@ -51,6 +53,7 @@ __all__ = [
     "KnowledgePolicy",
     "ReasoningPolicy",
     "StructuredOutputPolicy",
+    "CodingPolicy",
     # Multi-agent policies
     "TeamPolicy",
     "AgentRole",
@@ -63,6 +66,7 @@ __all__ = [
     "create_codeact_spec",
     "create_research_spec",
     "create_team_spec",
+    "create_coding_spec",
 ]
 
 __version__ = "0.2.0"

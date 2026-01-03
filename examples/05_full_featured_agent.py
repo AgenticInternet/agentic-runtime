@@ -32,8 +32,8 @@ def main():
     # Uses advanced model for complex tasks: x-ai/grok-code-fast-1
     spec = AgentSpec(
         model_id="x-ai/grok-code-fast-1",
-        user_id="demo_user",
-        session_id="demo_session_001",
+        user_id="demo_user_1",
+        session_id="demo_session_0012",
         context=ContextPolicy(
             enable_user_memories=True,
             enable_session_summaries=True,

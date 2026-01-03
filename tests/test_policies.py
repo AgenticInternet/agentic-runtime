@@ -11,6 +11,7 @@ from core.policies import (
     AgentSpec,
     AgentRole,
     CodeActPolicy,
+    CodingPolicy,
     ContextPolicy,
     KnowledgePolicy,
     McpPolicy,
@@ -25,6 +26,7 @@ from core.policies import (
     WorkflowStep,
     create_basic_spec,
     create_codeact_spec,
+    create_coding_spec,
     create_research_spec,
     create_team_spec,
 )
@@ -403,3 +405,65 @@ class TestPresets:
         spec = create_team_spec(members=members)
         assert spec.team.enabled is True
         assert len(spec.team.members) == 2
+
+    def test_create_coding_spec(self):
+        spec = create_coding_spec(
+            workspace_root="/tmp/project",
+            allow_write=True,
+            allow_git_write=False,
+        )
+        assert spec.coding.enabled is True
+        assert spec.coding.workspace_root == "/tmp/project"
+        assert spec.coding.allow_write is True
+        assert spec.coding.allow_git_write is False
+        assert spec.codeact.enabled is True
+        assert spec.reasoning.enabled is True
+
+
+# =============================================================================
+# Coding Policy Tests
+# =============================================================================
+
+
+class TestCodingPolicy:
+    def test_default_values(self):
+        policy = CodingPolicy()
+        assert policy.enabled is False
+        assert policy.workspace_root == "."
+        assert policy.allow_write is True
+        assert policy.max_file_size_kb == 512
+        assert policy.max_search_results == 100
+        assert policy.enable_git is True
+        assert policy.allow_git_write is False
+
+    def test_custom_values(self):
+        policy = CodingPolicy(
+            enabled=True,
+            workspace_root="/home/user/project",
+            allow_write=False,
+            max_file_size_kb=1024,
+            enable_git=False,
+        )
+        assert policy.enabled is True
+        assert policy.workspace_root == "/home/user/project"
+        assert policy.allow_write is False
+        assert policy.max_file_size_kb == 1024
+        assert policy.enable_git is False
+
+    def test_exclude_patterns_default(self):
+        policy = CodingPolicy()
+        assert "**/.git/**" in policy.exclude_patterns
+        assert "**/node_modules/**" in policy.exclude_patterns
+        assert "**/__pycache__/**" in policy.exclude_patterns
+
+    def test_max_file_size_validation(self):
+        with pytest.raises(ValidationError):
+            CodingPolicy(max_file_size_kb=0)
+        with pytest.raises(ValidationError):
+            CodingPolicy(max_file_size_kb=20000)
+
+    def test_max_search_results_validation(self):
+        with pytest.raises(ValidationError):
+            CodingPolicy(max_search_results=0)
+        with pytest.raises(ValidationError):
+            CodingPolicy(max_search_results=2000)

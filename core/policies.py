@@ -206,6 +206,70 @@ class ReasoningPolicy(BaseModel):
 
 
 # =============================================================================
+# Coding Policy
+# =============================================================================
+
+
+class CodingPolicy(BaseModel):
+    """Policy for agentic coding capabilities."""
+
+    enabled: bool = False
+
+    # Workspace configuration
+    workspace_root: str = Field(
+        default=".", description="Root directory for file operations"
+    )
+    
+    # File operations
+    allow_write: bool = Field(
+        default=True, description="Allow file write/edit operations"
+    )
+    max_file_size_kb: int = Field(
+        default=512, ge=1, le=10240, description="Maximum file size to read (KB)"
+    )
+    max_search_results: int = Field(
+        default=100, ge=1, le=1000, description="Maximum search results"
+    )
+    
+    # File patterns
+    include_patterns: List[str] = Field(
+        default_factory=lambda: ["**/*"],
+        description="Glob patterns for files to include"
+    )
+    exclude_patterns: List[str] = Field(
+        default_factory=lambda: [
+            "**/.git/**",
+            "**/node_modules/**",
+            "**/__pycache__/**",
+            "**/.venv/**",
+            "**/venv/**",
+            "**/*.pyc",
+            "**/dist/**",
+            "**/build/**",
+        ],
+        description="Glob patterns for files to exclude"
+    )
+    
+    # Git integration
+    enable_git: bool = Field(
+        default=True, description="Enable git tools"
+    )
+    allow_git_write: bool = Field(
+        default=False, description="Allow git add/commit operations"
+    )
+    
+    # Safety settings
+    require_confirmation_for_destructive: bool = Field(
+        default=True, description="Require confirmation for destructive operations"
+    )
+    backup_before_edit: bool = Field(
+        default=False, description="Create backup before editing files"
+    )
+
+    model_config = {"extra": "forbid"}
+
+
+# =============================================================================
 # Structured Output Policies
 # =============================================================================
 
@@ -472,6 +536,7 @@ class AgentSpec(BaseModel):
     knowledge: KnowledgePolicy = Field(default_factory=KnowledgePolicy)
     reasoning: ReasoningPolicy = Field(default_factory=ReasoningPolicy)
     structured_output: StructuredOutputPolicy = Field(default_factory=StructuredOutputPolicy)
+    coding: CodingPolicy = Field(default_factory=CodingPolicy)
 
     # Multi-agent policies
     team: TeamPolicy = Field(default_factory=TeamPolicy)
@@ -565,4 +630,50 @@ def create_team_spec(
             leader_model_id=leader_model_id,
             mode="coordinate",
         ),
+    )
+
+
+def create_coding_spec(
+    model_id: str = "anthropic/claude-sonnet-4",
+    workspace_root: str = ".",
+    enable_codeact: bool = True,
+    allow_write: bool = True,
+    allow_git_write: bool = False,
+    max_iterations: int = 10,
+) -> AgentSpec:
+    """
+    Create an agent spec optimized for agentic coding tasks.
+    
+    Args:
+        model_id: Model to use (default: Claude Sonnet for coding)
+        workspace_root: Root directory for file operations
+        enable_codeact: Enable Daytona sandbox for code execution
+        allow_write: Allow file write operations
+        allow_git_write: Allow git add/commit operations
+        max_iterations: Max iterations for code execution
+    
+    Returns:
+        AgentSpec configured for coding tasks
+    """
+    return AgentSpec(
+        name="coding_agent",
+        model_id=model_id,
+        codeact=CodeActPolicy(
+            enabled=enable_codeact,
+            max_iterations=max_iterations,
+            enable_code_interpreter=True,
+        ),
+        coding=CodingPolicy(
+            enabled=True,
+            workspace_root=workspace_root,
+            allow_write=allow_write,
+            enable_git=True,
+            allow_git_write=allow_git_write,
+        ),
+        reasoning=ReasoningPolicy(
+            enabled=True,
+            mode="extended",
+        ),
+        system_prompt=SystemPromptPolicy(template="codeact"),
+        mcp=McpPolicy(enabled=False),
     )
