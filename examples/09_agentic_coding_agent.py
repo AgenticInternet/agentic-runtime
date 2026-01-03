@@ -27,7 +27,7 @@ def main():
     workspace = os.getcwd()
     
     spec = create_coding_spec(
-        model_id="anthropic/claude-sonnet-4",
+        model_id="x-ai/grok-code-fast-1",
         workspace_root=workspace,
         enable_codeact=True,
         allow_write=True,
