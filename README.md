@@ -5,14 +5,14 @@ A state-of-the-art agentic runtime built on [Agno](https://github.com/agno-agi/a
 ## Features
 
 - **Agentic Coding** - File operations, code search, and git integration for autonomous coding tasks
-- **Multi-Agent Teams** - Coordinate multiple specialized agents
-- **Workflows** - Orchestrate complex multi-step tasks
-- **Knowledge Base (RAG)** - Vector database integration with LanceDB, PgVector, Chroma
-- **Structured Output** - Pydantic-validated responses
-- **Reasoning** - Chain-of-thought and extended thinking
-- **Code Execution** - Secure sandbox via Daytona
-- **MCP Integration** - Model Context Protocol tools
-- **Observability** - Tool hooks, logging, and metrics
+- **Code Execution** - Secure sandbox via Daytona with stateful code interpreter
+- **Multi-Agent Teams** - Coordinate multiple specialized agents with leader delegation
+- **Workflows** - Orchestrate complex multi-step tasks with dependencies
+- **Knowledge Base (RAG)** - Vector database integration with LanceDB, PgVector, Chroma, Qdrant
+- **Structured Output** - Pydantic-validated responses with JSON mode
+- **Reasoning** - Chain-of-thought (basic, extended, tools modes)
+- **MCP Integration** - Model Context Protocol tools with multi-server support
+- **Observability** - Tool hooks, event streaming, logging, and metrics
 
 ## Setup
 
@@ -27,8 +27,11 @@ uv sync
 # With knowledge/RAG support
 uv sync --extra knowledge
 
-# Full installation
+# Full installation (all vector DBs)
 uv sync --extra full
+
+# Development (includes pytest, ruff)
+uv sync --extra dev
 ```
 
 ## Quick Start
@@ -113,7 +116,6 @@ from agno.models.openrouter import OpenRouter
 from agno.tools.daytona import DaytonaTools
 
 # Create an agent that works entirely in an isolated Daytona sandbox
-# Clones a GitHub repo and performs all operations there
 agent = Agent(
     name="coding_agent",
     model=OpenRouter(id="anthropic/claude-sonnet-4"),
@@ -121,31 +123,15 @@ agent = Agent(
     instructions=[
         "You work in a Daytona sandbox at /home/daytona.",
         "Clone repos with: git clone <url> /home/daytona/repo",
-        "All file operations happen in the sandbox.",
     ],
 )
 
 # Agent clones repo and analyzes code in the sandbox
 agent.print_response(
-    """Clone https://github.com/user/repo.git and:
-    1. List the project structure
-    2. Read the README
-    3. Show recent git history
-    4. Identify potential improvements""",
+    "Clone https://github.com/user/repo.git, list the structure, and analyze the README",
     stream=True,
 )
 ```
-
-**Daytona Sandbox Operations:**
-- `run_shell_command` - Execute bash commands (git, ls, grep, etc.)
-- `run_code` - Execute Python code in sandbox
-- `create_file`, `read_file`, `list_files`, `delete_file` - File operations
-
-**Local Coding Tools (via `create_coding_spec`):**
-- `read_file`, `write_file`, `edit_file` - File operations with line ranges
-- `list_directory`, `find_files` - Directory navigation and glob patterns
-- `grep` - Regex-based code search with context
-- `git_status`, `git_diff`, `git_log`, `git_branch`, `git_show`, `git_blame` - Git operations
 
 ## Configuration
 
@@ -169,7 +155,7 @@ from core import (
 
 spec = AgentSpec(
     name="my_agent",
-    model_id="google/gemini-3-flash-preview",  # or z-ai/glm-4.7, x-ai/grok-code-fast-1
+    model_id="google/gemini-3-flash-preview",
     
     # Context and memory
     context=ContextPolicy(
@@ -177,27 +163,27 @@ spec = AgentSpec(
         num_history_runs=5,
     ),
     
-    # Code execution
+    # Code execution (Daytona sandbox)
     codeact=CodeActPolicy(
         enabled=True,
         max_iterations=10,
         extract_charts=True,
     ),
     
-    # Knowledge base
+    # Knowledge base (RAG)
     knowledge=KnowledgePolicy(
         enabled=True,
-        vector_db="lancedb",
+        vector_db="lancedb",  # lancedb, pgvector, chroma, qdrant
         search_type="hybrid",
     ),
     
     # Reasoning
     reasoning=ReasoningPolicy(
         enabled=True,
-        mode="extended",
+        mode="extended",  # basic, extended, tools
     ),
     
-    # Agentic coding
+    # Agentic coding (local file ops)
     coding=CodingPolicy(
         enabled=True,
         workspace_root="/path/to/project",
@@ -218,24 +204,40 @@ spec = AgentSpec(
 Use convenience functions for common configurations:
 
 ```python
-from core import create_basic_spec, create_codeact_spec, create_research_spec, create_coding_spec
+from core import (
+    create_basic_spec,
+    create_codeact_spec,
+    create_research_spec,
+    create_coding_spec,
+    create_team_spec,
+)
 
-# Basic agent (no tools)
+# Basic agent (no code execution)
 spec = create_basic_spec()
 
-# Code execution agent
+# Code execution agent (Daytona sandbox)
 spec = create_codeact_spec(max_iterations=10)
 
-# Research agent with RAG
+# Research agent with RAG and extended reasoning
 spec = create_research_spec(
     knowledge_sources=["https://docs.example.com"]
 )
 
-# Agentic coding agent
+# Agentic coding agent (file ops + git + code execution)
 spec = create_coding_spec(
     workspace_root=".",
     enable_codeact=True,
     allow_write=True,
+    allow_git_write=False,
+)
+
+# Multi-agent team
+from core import AgentRole
+spec = create_team_spec(
+    members=[
+        AgentRole(name="analyst", role="Analyze data"),
+        AgentRole(name="reporter", role="Write reports"),
+    ]
 )
 ```
 
@@ -253,13 +255,13 @@ See the `examples/` directory for complete examples:
 | `06_conversational_session.py` | Interactive chat |
 | `07_structured_output.py` | Pydantic-validated responses |
 | `08_multi_agent_team.py` | Multi-agent coordination |
-| `09_agentic_coding_agent.py` | **Agentic coding with file ops, git, and Daytona** |
+| `09_agentic_coding_agent.py` | Agentic coding with Daytona sandbox |
 
 ```bash
+# Run basic example
 uv run python examples/01_basic_agent.py
 
-# Run the agentic coding agent with different modes
-# Works in Daytona sandbox, cloning GitHub repos
+# Run agentic coding agent (works in Daytona sandbox with GitHub repos)
 uv run python examples/09_agentic_coding_agent.py --mode analyze
 uv run python examples/09_agentic_coding_agent.py --mode refactor
 uv run python examples/09_agentic_coding_agent.py --mode test
@@ -288,24 +290,25 @@ uv run pytest tests/test_policies.py
 ```
 core/
 ├── __init__.py          # Public API exports
-├── factory.py           # Agent/Team/Workflow builders
-├── policies.py          # All configuration policies
+├── factory.py           # build_agent, build_team, build_workflow
+├── policies.py          # All configuration policies & presets
+├── context_manager.py   # Context management utilities
+├── settings.py          # Environment settings
+├── tool_runtime.py      # Tool runtime utilities
 ├── prompts/
 │   └── system.py        # System prompt templates
 └── tools/
     ├── local.py         # Local utility tools
-    ├── daytona.py       # Daytona sandbox tools
-    ├── coding.py        # File operations and code search tools
+    ├── daytona.py       # Daytona sandbox integration
+    ├── coding.py        # File operations & code search
     ├── git.py           # Git integration tools
-    ├── mcp.py           # MCP integration
+    ├── mcp.py           # MCP tool integration
     ├── knowledge.py     # RAG/knowledge tools
     ├── reasoning.py     # Reasoning tools
     └── hooks.py         # Observability hooks
 ```
 
 ### Coding Tools
-
-The agentic coding capability provides these tools:
 
 | Tool | Description |
 |------|-------------|
@@ -314,8 +317,13 @@ The agentic coding capability provides these tools:
 | `edit_file` | Edit files by replacing text (single or all occurrences) |
 | `list_directory` | List directory contents |
 | `find_files` | Find files matching glob patterns |
-| `grep` | Search for regex patterns across files |
+| `grep` | Regex-based code search with context |
 | `get_file_info` | Get file metadata (size, type, etc.) |
+
+### Git Tools
+
+| Tool | Description |
+|------|-------------|
 | `git_status` | Show working tree status |
 | `git_diff` | Show changes between commits or working tree |
 | `git_log` | Show commit history |
@@ -324,6 +332,25 @@ The agentic coding capability provides these tools:
 | `git_blame` | Show line-by-line authorship |
 | `git_add` | Stage files (if `allow_git_write=True`) |
 | `git_commit` | Create commits (if `allow_git_write=True`) |
+
+### Daytona Sandbox Operations
+
+| Tool | Description |
+|------|-------------|
+| `run_shell_command` | Execute bash commands (git, ls, grep, etc.) |
+| `run_code` | Execute Python code in sandbox |
+| `create_file` | Create or update files in sandbox |
+| `read_file` | Read file contents from sandbox |
+| `list_files` | List directory contents in sandbox |
+| `delete_file` | Delete files in sandbox |
+
+## Environment Variables
+
+```bash
+OPENROUTER_API_KEY=...    # Required for LLM access
+DAYTONA_API_KEY=...       # Required for sandbox execution
+DAYTONA_API_URL=...       # Optional: custom Daytona endpoint
+```
 
 ## License
 
