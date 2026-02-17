@@ -5,7 +5,8 @@ Factory functions for building agents, teams, and workflows.
 """
 
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Union
+from uuid import uuid4
 
 from dotenv import load_dotenv
 
@@ -17,7 +18,15 @@ from agno.models.openrouter import OpenRouter
 from agno.team import Team
 from agno.workflow.step import Step
 from agno.workflow.workflow import Workflow
+from sqlalchemy import create_engine
 
+from .durability import (
+    DurableAgent,
+    DurableRunner,
+    RunJournal,
+    RunState,
+    build_durable_tool_hook,
+)
 from .policies import AgentRole, AgentSpec
 from .prompts.system import build_system_prompt
 from .tools.coding import build_coding_tools
@@ -67,32 +76,76 @@ def _build_tools(spec: AgentSpec) -> List[Any]:
     return tools
 
 
-def _build_tool_hooks(spec: AgentSpec) -> Optional[List[Callable]]:
-    """Build tool hooks based on observability policy."""
-    if not spec.observability.enabled or not spec.observability.enable_tool_hooks:
-        return None
-    return build_tool_hooks(spec)
+def _build_tool_hooks(
+    spec: AgentSpec,
+    durable_hook: Optional[Callable] = None,
+) -> Optional[List[Callable]]:
+    """Build tool hooks, composing durability and observability hooks.
+
+    The durable hook is placed first so it can short-circuit with cached
+    results before observability hooks fire.
+    """
+    hooks: List[Callable] = []
+
+    # Durable hook first (outermost) — short-circuits on cache hit
+    if durable_hook is not None:
+        hooks.append(durable_hook)
+
+    # Observability hooks after durability
+    if spec.observability.enabled and spec.observability.enable_tool_hooks:
+        hooks.extend(build_tool_hooks(spec))
+
+    return hooks if hooks else None
+
+
+def _create_journal_engine(spec: AgentSpec, db: SqliteDb) -> Any:
+    """Create the SQLAlchemy engine for the durability journal.
+
+    Uses the agent's existing database engine by default, or a separate
+    file if configured in DurableExecutionPolicy.journal_db_file.
+    """
+    if spec.durability.journal_db_file:
+        Path(spec.durability.journal_db_file).parent.mkdir(parents=True, exist_ok=True)
+        return create_engine(f"sqlite:///{spec.durability.journal_db_file}")
+    return db.db_engine
 
 
 def build_agent(
     spec: AgentSpec,
     db: Optional[SqliteDb] = None,
-) -> Agent:
+) -> Union[Agent, DurableAgent]:
     """
     Build an Agno Agent from specification.
+
+    When spec.durability.enabled is True, returns a DurableAgent that
+    wraps the Agno Agent with journal-backed checkpoint and resume.
 
     Args:
         spec: Agent specification with all policies
         db: Optional database instance (creates default if None)
 
     Returns:
-        Configured Agno Agent instance
+        Configured Agno Agent (or DurableAgent when durability is enabled)
     """
     if db is None:
         db = _ensure_db_dir()
 
+    # Set up durability infrastructure (before building hooks)
+    durable_hook = None
+    journal = None
+    run_state = None
+
+    if spec.durability.enabled:
+        engine = _create_journal_engine(spec, db)
+        journal = RunJournal(engine, schema_version=spec.durability.schema_version)
+        run_state = RunState(
+            run_id=spec.session_id or str(uuid4()),
+            session_id=spec.session_id,
+        )
+        durable_hook = build_durable_tool_hook(journal, run_state)
+
     tools = _build_tools(spec)
-    tool_hooks = _build_tool_hooks(spec)
+    tool_hooks = _build_tool_hooks(spec, durable_hook=durable_hook)
     instructions = build_system_prompt(spec)
 
     # Build agent kwargs
@@ -138,7 +191,14 @@ def build_agent(
     if spec.system_prompt.add_datetime:
         agent_kwargs["add_datetime_to_context"] = True
 
-    return Agent(**agent_kwargs)
+    agent = Agent(**agent_kwargs)
+
+    # Wrap with durability if enabled
+    if spec.durability.enabled and journal is not None and run_state is not None:
+        runner = DurableRunner(agent, journal, spec.durability, run_state=run_state)
+        return DurableAgent(agent, runner)
+
+    return agent
 
 
 def _build_team_member(

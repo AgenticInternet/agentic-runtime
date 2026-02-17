@@ -9,6 +9,8 @@ from typing import List, Literal, Optional, Type
 
 from pydantic import BaseModel, Field, field_validator
 
+from .durability.policy import DurableExecutionPolicy
+
 # =============================================================================
 # Context & Memory Policies
 # =============================================================================
@@ -544,6 +546,9 @@ class AgentSpec(BaseModel):
     # Observability
     observability: ObservabilityPolicy = Field(default_factory=ObservabilityPolicy)
 
+    # Durability
+    durability: DurableExecutionPolicy = Field(default_factory=DurableExecutionPolicy)
+
     # Structured output schema (set programmatically)
     # This allows passing a Pydantic model class for structured outputs
     _output_schema: Optional[Type[BaseModel]] = None
@@ -642,7 +647,7 @@ def create_coding_spec(
 ) -> AgentSpec:
     """
     Create an agent spec optimized for agentic coding tasks.
-    
+
     Args:
         model_id: Model to use (default: Claude Sonnet for coding)
         workspace_root: Root directory for file operations
@@ -650,7 +655,7 @@ def create_coding_spec(
         allow_write: Allow file write operations
         allow_git_write: Allow git add/commit operations
         max_iterations: Max iterations for code execution
-    
+
     Returns:
         AgentSpec configured for coding tasks
     """
@@ -675,4 +680,47 @@ def create_coding_spec(
         ),
         system_prompt=SystemPromptPolicy(template="codeact"),
         mcp=McpPolicy(enabled=False),
+    )
+
+
+def create_durable_coding_spec(
+    model_id: str = "anthropic/claude-sonnet-4",
+    workspace_root: str = ".",
+    journal_db_file: Optional[str] = None,
+    allow_write: bool = True,
+    allow_git_write: bool = False,
+) -> AgentSpec:
+    """
+    Create an agent spec for durable coding with checkpoint and resume.
+
+    Combines the coding preset with durable execution enabled.
+
+    Args:
+        model_id: Model to use (default: Claude Sonnet for coding)
+        workspace_root: Root directory for file operations
+        journal_db_file: Path to journal DB (None = share agent's db)
+        allow_write: Allow file write operations
+        allow_git_write: Allow git add/commit operations
+
+    Returns:
+        AgentSpec configured for durable coding tasks
+    """
+    return AgentSpec(
+        name="durable_coding_agent",
+        model_id=model_id,
+        codeact=CodeActPolicy(enabled=False),
+        coding=CodingPolicy(
+            enabled=True,
+            workspace_root=workspace_root,
+            allow_write=allow_write,
+            enable_git=True,
+            allow_git_write=allow_git_write,
+        ),
+        reasoning=ReasoningPolicy(enabled=True, mode="extended"),
+        system_prompt=SystemPromptPolicy(template="codeact"),
+        mcp=McpPolicy(enabled=False),
+        durability=DurableExecutionPolicy(
+            enabled=True,
+            journal_db_file=journal_db_file,
+        ),
     )
