@@ -256,6 +256,7 @@ See the `examples/` directory for complete examples:
 | `07_structured_output.py` | Pydantic-validated responses |
 | `08_multi_agent_team.py` | Multi-agent coordination |
 | `09_agentic_coding_agent.py` | Agentic coding with Daytona sandbox |
+| `10_xlsx_skill_agent.py` | Validate a workbook with the xlsx skill |
 
 ```bash
 # Run basic example
@@ -270,7 +271,13 @@ uv run python examples/09_agentic_coding_agent.py --mode interactive
 
 # Use a custom GitHub repository
 uv run python examples/09_agentic_coding_agent.py --repo https://github.com/owner/repo.git --branch main
+
+# Prepare and run the xlsx skill example
+uv run python examples/10_xlsx_skill_agent.py --prepare-only
+uv run python examples/10_xlsx_skill_agent.py
 ```
+
+The xlsx skill example expects the skill at `~/.agents/skills/xlsx` by default and looks for LibreOffice via `soffice`, `SOFFICE_BIN`, or `--soffice-path`.
 
 ## Testing
 

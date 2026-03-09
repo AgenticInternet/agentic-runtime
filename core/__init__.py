@@ -21,6 +21,7 @@ from .policies import (
     # Observability
     ObservabilityPolicy,
     ReasoningPolicy,
+    SkillsPolicy,
     StructuredOutputPolicy,
     SystemPromptPolicy,
     # Multi-agent policies
@@ -54,6 +55,7 @@ __all__ = [
     "McpServerConfig",
     "KnowledgePolicy",
     "ReasoningPolicy",
+    "SkillsPolicy",
     "StructuredOutputPolicy",
     "CodingPolicy",
     # Multi-agent policies

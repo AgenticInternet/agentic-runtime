@@ -8,16 +8,13 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Union
 from uuid import uuid4
 
-from dotenv import load_dotenv
-
-load_dotenv()
-
 from agno.agent import Agent
 from agno.db.sqlite import SqliteDb
 from agno.models.openrouter import OpenRouter
 from agno.team import Team
 from agno.workflow.step import Step
 from agno.workflow.workflow import Workflow
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 
 from .durability import (
@@ -37,6 +34,8 @@ from .tools.knowledge import build_knowledge_tools
 from .tools.local import build_local_tools
 from .tools.mcp import build_mcp_tools
 from .tools.reasoning import build_reasoning_tools
+
+load_dotenv()
 
 
 def _ensure_db_dir() -> SqliteDb:
@@ -74,6 +73,35 @@ def _build_tools(spec: AgentSpec) -> List[Any]:
         tools.extend(build_git_tools(spec))
 
     return tools
+
+
+def _build_skills(spec: AgentSpec) -> Optional[Any]:
+    """Build Agno skills from local filesystem loaders."""
+    if not spec.skills.enabled:
+        return None
+
+    try:
+        from agno.skills import LocalSkills, Skills
+    except ImportError as exc:
+        raise ImportError(
+            "Skills support requires an Agno version that provides agno.skills"
+        ) from exc
+
+    base_path = Path(spec.coding.workspace_root if spec.coding.enabled else ".").expanduser()
+    loaders = []
+
+    for skill_path in spec.skills.paths:
+        resolved_path = Path(skill_path).expanduser()
+        if not resolved_path.is_absolute():
+            resolved_path = base_path / resolved_path
+
+        resolved_path = resolved_path.resolve()
+        if not resolved_path.exists():
+            raise FileNotFoundError(f"Skills path does not exist: {resolved_path}")
+
+        loaders.append(LocalSkills(str(resolved_path), validate=spec.skills.validate_on_load))
+
+    return Skills(loaders=loaders)
 
 
 def _build_tool_hooks(
@@ -145,6 +173,7 @@ def build_agent(
         durable_hook = build_durable_tool_hook(journal, run_state)
 
     tools = _build_tools(spec)
+    skills = _build_skills(spec)
     tool_hooks = _build_tool_hooks(spec, durable_hook=durable_hook)
     instructions = build_system_prompt(spec)
 
@@ -162,6 +191,9 @@ def build_agent(
         "num_history_runs": spec.context.num_history_runs,
         "markdown": True,
     }
+
+    if skills is not None:
+        agent_kwargs["skills"] = skills
 
     # Add name and description if provided
     if spec.name:
@@ -205,6 +237,7 @@ def _build_team_member(
     role: AgentRole,
     spec: AgentSpec,
     db: SqliteDb,
+    skills: Optional[Any] = None,
 ) -> Agent:
     """Build a team member agent from role definition."""
     # Use role-specific model or fall back to spec default
@@ -224,13 +257,20 @@ def _build_team_member(
         elif tool_name == "reasoning":
             member_tools.extend(build_reasoning_tools(spec))
 
+    member_kwargs: Dict[str, Any] = {
+        "name": role.name,
+        "role": role.role,
+        "model": OpenRouter(id=model_id),
+        "tools": member_tools,
+        "instructions": role.instructions if role.instructions else None,
+        "markdown": True,
+    }
+
+    if skills is not None:
+        member_kwargs["skills"] = skills
+
     return Agent(
-        name=role.name,
-        role=role.role,
-        model=OpenRouter(id=model_id),
-        tools=member_tools,
-        instructions=role.instructions if role.instructions else None,
-        markdown=True,
+        **member_kwargs,
     )
 
 
@@ -255,9 +295,8 @@ def build_team(
         db = _ensure_db_dir()
 
     # Build team members
-    members = [
-        _build_team_member(role, spec, db) for role in spec.team.members
-    ]
+    skills = _build_skills(spec)
+    members = [_build_team_member(role, spec, db, skills=skills) for role in spec.team.members]
 
     if not members:
         raise ValueError("Team must have at least one member")
@@ -346,15 +385,21 @@ def build_workflow(
         # Determine executor
         if step_config.agent_name:
             if step_config.agent_name not in agents:
-                raise ValueError(f"Agent '{step_config.agent_name}' not found for step '{step_config.name}'")
+                raise ValueError(
+                    f"Agent '{step_config.agent_name}' not found for step '{step_config.name}'"
+                )
             step_kwargs["agent"] = agents[step_config.agent_name]
         elif step_config.team_name:
             if step_config.team_name not in teams:
-                raise ValueError(f"Team '{step_config.team_name}' not found for step '{step_config.name}'")
+                raise ValueError(
+                    f"Team '{step_config.team_name}' not found for step '{step_config.name}'"
+                )
             step_kwargs["team"] = teams[step_config.team_name]
         elif step_config.function_name:
             if step_config.function_name not in functions:
-                raise ValueError(f"Function '{step_config.function_name}' not found for step '{step_config.name}'")
+                raise ValueError(
+                    f"Function '{step_config.function_name}' not found for step '{step_config.name}'"
+                )
             step_kwargs["function"] = functions[step_config.function_name]
         else:
             raise ValueError(f"Step '{step_config.name}' must have an agent, team, or function")

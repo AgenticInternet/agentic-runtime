@@ -18,6 +18,7 @@ from core.policies import (
     McpServerConfig,
     ObservabilityPolicy,
     ReasoningPolicy,
+    SkillsPolicy,
     StructuredOutputPolicy,
     SystemPromptPolicy,
     TeamPolicy,
@@ -210,8 +211,29 @@ class TestStructuredOutputPolicy:
     def test_default_values(self):
         policy = StructuredOutputPolicy()
         assert policy.enabled is False
-        assert policy.use_json_mode is False
+        assert policy.use_json_mode is True
         assert policy.strict_validation is True
+
+
+# =============================================================================
+# Skills Policy Tests
+# =============================================================================
+
+
+class TestSkillsPolicy:
+    def test_default_values(self):
+        policy = SkillsPolicy()
+        assert policy.enabled is False
+        assert policy.paths == []
+        assert policy.validate_on_load is True
+
+    def test_requires_paths_when_enabled(self):
+        with pytest.raises(ValidationError):
+            SkillsPolicy(enabled=True, paths=[])
+
+    def test_normalizes_paths(self):
+        policy = SkillsPolicy(enabled=True, paths=["  ./skills  "])
+        assert policy.paths == ["./skills"]
 
 
 # =============================================================================
@@ -366,6 +388,7 @@ class TestAgentSpec:
         assert isinstance(spec.mcp, McpPolicy)
         assert isinstance(spec.knowledge, KnowledgePolicy)
         assert isinstance(spec.reasoning, ReasoningPolicy)
+        assert isinstance(spec.skills, SkillsPolicy)
         assert isinstance(spec.team, TeamPolicy)
         assert isinstance(spec.workflow, WorkflowPolicy)
         assert isinstance(spec.observability, ObservabilityPolicy)
@@ -389,9 +412,7 @@ class TestPresets:
         assert spec.system_prompt.template == "codeact"
 
     def test_create_research_spec(self):
-        spec = create_research_spec(
-            knowledge_sources=["https://docs.example.com"]
-        )
+        spec = create_research_spec(knowledge_sources=["https://docs.example.com"])
         assert spec.knowledge.enabled is True
         assert spec.reasoning.enabled is True
         assert len(spec.knowledge.content_sources) == 1

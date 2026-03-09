@@ -10,8 +10,10 @@ from core import (
     AgentRole,
     AgentSpec,
     CodeActPolicy,
+    CodingPolicy,
     McpPolicy,
     ReasoningPolicy,
+    SkillsPolicy,
     TeamPolicy,
     WorkflowPolicy,
     WorkflowStep,
@@ -70,6 +72,40 @@ class TestBuildAgent:
         agent = build_agent(spec)
         assert agent is not None
 
+    def test_build_agent_with_skills(self, tmp_path):
+        """Test building an agent with skills loaded from workspace-relative paths."""
+        skill_dir = tmp_path / "skills" / "code-review"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            "---\n"
+            "name: code-review\n"
+            "description: Review code carefully.\n"
+            "---\n"
+            "Use careful review.\n"
+        )
+
+        spec = AgentSpec(
+            codeact=CodeActPolicy(enabled=False),
+            coding=CodingPolicy(enabled=True, workspace_root=str(tmp_path)),
+            skills=SkillsPolicy(enabled=True, paths=["skills"]),
+        )
+
+        agent = build_agent(spec)
+        skills = getattr(agent, "skills", None)
+        assert skills is not None
+        assert skills.get_skill_names() == ["code-review"]
+
+    def test_build_agent_with_missing_skills_path(self, tmp_path):
+        """Test that build_agent fails fast for missing skills paths."""
+        spec = AgentSpec(
+            codeact=CodeActPolicy(enabled=False),
+            coding=CodingPolicy(enabled=True, workspace_root=str(tmp_path)),
+            skills=SkillsPolicy(enabled=True, paths=["skills"]),
+        )
+
+        with pytest.raises(FileNotFoundError, match="Skills path does not exist"):
+            build_agent(spec)
+
 
 # =============================================================================
 # Team Factory Tests
@@ -110,6 +146,33 @@ class TestBuildTeam:
         team = build_team(spec)
         assert team is not None
         assert len(team.members) == 2
+
+    def test_build_team_members_with_skills(self, tmp_path):
+        """Test building team members with shared skills support."""
+        skill_dir = tmp_path / "skills" / "code-review"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            "---\n"
+            "name: code-review\n"
+            "description: Review code carefully.\n"
+            "---\n"
+            "Use careful review.\n"
+        )
+
+        spec = AgentSpec(
+            codeact=CodeActPolicy(enabled=False),
+            coding=CodingPolicy(enabled=True, workspace_root=str(tmp_path)),
+            skills=SkillsPolicy(enabled=True, paths=["skills"]),
+            team=TeamPolicy(
+                enabled=True,
+                members=[AgentRole(name="researcher", role="Research topics")],
+            ),
+        )
+
+        team = build_team(spec)
+        skills = getattr(team.members[0], "skills", None)
+        assert skills is not None
+        assert skills.get_skill_names() == ["code-review"]
 
 
 # =============================================================================

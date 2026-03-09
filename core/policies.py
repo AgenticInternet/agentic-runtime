@@ -7,7 +7,7 @@ knowledge bases, reasoning, and observability.
 
 from typing import List, Literal, Optional, Type
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .durability.policy import DurableExecutionPolicy
 
@@ -139,9 +139,7 @@ class KnowledgePolicy(BaseModel):
     vector_db: Literal["lancedb", "pgvector", "chroma", "qdrant"] = Field(
         default="lancedb", description="Vector database backend"
     )
-    vector_db_uri: str = Field(
-        default="tmp/lancedb", description="URI/path for vector database"
-    )
+    vector_db_uri: str = Field(default="tmp/lancedb", description="URI/path for vector database")
     table_name: str = Field(default="knowledge", min_length=1)
 
     # Embedder configuration
@@ -217,14 +215,10 @@ class CodingPolicy(BaseModel):
     enabled: bool = False
 
     # Workspace configuration
-    workspace_root: str = Field(
-        default=".", description="Root directory for file operations"
-    )
+    workspace_root: str = Field(default=".", description="Root directory for file operations")
 
     # File operations
-    allow_write: bool = Field(
-        default=True, description="Allow file write/edit operations"
-    )
+    allow_write: bool = Field(default=True, description="Allow file write/edit operations")
     max_file_size_kb: int = Field(
         default=512, ge=1, le=10240, description="Maximum file size to read (KB)"
     )
@@ -234,8 +228,7 @@ class CodingPolicy(BaseModel):
 
     # File patterns
     include_patterns: List[str] = Field(
-        default_factory=lambda: ["**/*"],
-        description="Glob patterns for files to include"
+        default_factory=lambda: ["**/*"], description="Glob patterns for files to include"
     )
     exclude_patterns: List[str] = Field(
         default_factory=lambda: [
@@ -248,16 +241,12 @@ class CodingPolicy(BaseModel):
             "**/dist/**",
             "**/build/**",
         ],
-        description="Glob patterns for files to exclude"
+        description="Glob patterns for files to exclude",
     )
 
     # Git integration
-    enable_git: bool = Field(
-        default=True, description="Enable git tools"
-    )
-    allow_git_write: bool = Field(
-        default=False, description="Allow git add/commit operations"
-    )
+    enable_git: bool = Field(default=True, description="Enable git tools")
+    allow_git_write: bool = Field(default=False, description="Allow git add/commit operations")
 
     # Safety settings
     require_confirmation_for_destructive: bool = Field(
@@ -268,6 +257,44 @@ class CodingPolicy(BaseModel):
     )
 
     model_config = {"extra": "forbid"}
+
+
+# =============================================================================
+# Skills Policies
+# =============================================================================
+
+
+class SkillsPolicy(BaseModel):
+    """Policy for loading local Agno skills."""
+
+    enabled: bool = False
+    paths: List[str] = Field(
+        default_factory=list,
+        description="Skill directories or individual skill folders to load",
+    )
+    validate_on_load: bool = Field(
+        default=True,
+        description="Validate SKILL.md frontmatter and structure when loading",
+    )
+
+    model_config = {"extra": "forbid"}
+
+    @field_validator("paths")
+    @classmethod
+    def _normalize_paths(cls, value: List[str]) -> List[str]:
+        normalized_paths: List[str] = []
+        for path in value:
+            stripped_path = path.strip()
+            if not stripped_path:
+                raise ValueError("skills.paths entries must be non-empty")
+            normalized_paths.append(stripped_path)
+        return normalized_paths
+
+    @model_validator(mode="after")
+    def _require_paths_if_enabled(self) -> "SkillsPolicy":
+        if self.enabled and not self.paths:
+            raise ValueError("skills.paths must contain at least one path when skills are enabled")
+        return self
 
 
 # =============================================================================
@@ -356,9 +383,7 @@ class TeamPolicy(BaseModel):
     enabled: bool = False
 
     # Team composition
-    members: List[AgentRole] = Field(
-        default_factory=list, description="Agent roles in the team"
-    )
+    members: List[AgentRole] = Field(default_factory=list, description="Agent roles in the team")
 
     # Coordination settings
     mode: Literal["coordinate", "route", "collaborate"] = Field(
@@ -406,9 +431,7 @@ class WorkflowStep(BaseModel):
     agent_name: Optional[str] = Field(
         default=None, description="Name of agent to execute this step"
     )
-    team_name: Optional[str] = Field(
-        default=None, description="Name of team to execute this step"
-    )
+    team_name: Optional[str] = Field(default=None, description="Name of team to execute this step")
     function_name: Optional[str] = Field(
         default=None, description="Name of function to execute this step"
     )
@@ -449,9 +472,7 @@ class WorkflowPolicy(BaseModel):
     parallel_execution: bool = Field(
         default=False, description="Execute independent steps in parallel"
     )
-    stop_on_failure: bool = Field(
-        default=True, description="Stop workflow on step failure"
-    )
+    stop_on_failure: bool = Field(default=True, description="Stop workflow on step failure")
 
     model_config = {"extra": "forbid"}
 
@@ -473,20 +494,14 @@ class SystemPromptPolicy(BaseModel):
     )
 
     # Dynamic sections
-    add_datetime: bool = Field(
-        default=True, description="Add current datetime to context"
-    )
-    add_tool_descriptions: bool = Field(
-        default=True, description="Add tool descriptions to prompt"
-    )
+    add_datetime: bool = Field(default=True, description="Add current datetime to context")
+    add_tool_descriptions: bool = Field(default=True, description="Add tool descriptions to prompt")
     add_knowledge_context: bool = Field(
         default=True, description="Add retrieved knowledge to prompt"
     )
 
     # Persona
-    persona: Optional[str] = Field(
-        default=None, description="Agent persona/role description"
-    )
+    persona: Optional[str] = Field(default=None, description="Agent persona/role description")
     tone: Literal["professional", "friendly", "technical", "concise"] = Field(
         default="professional", description="Response tone"
     )
@@ -536,6 +551,7 @@ class AgentSpec(BaseModel):
     mcp: McpPolicy = Field(default_factory=McpPolicy)
     knowledge: KnowledgePolicy = Field(default_factory=KnowledgePolicy)
     reasoning: ReasoningPolicy = Field(default_factory=ReasoningPolicy)
+    skills: SkillsPolicy = Field(default_factory=SkillsPolicy)
     structured_output: StructuredOutputPolicy = Field(default_factory=StructuredOutputPolicy)
     coding: CodingPolicy = Field(default_factory=CodingPolicy)
 
