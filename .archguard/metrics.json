@@ -1,0 +1,17 @@
+[
+  {
+    "timestamp": "2026-02-17T16:13:10.383Z",
+    "command": "scan",
+    "totalFiles": 40,
+    "totalFindings": 1,
+    "errors": 0,
+    "warnings": 1,
+    "infos": 0,
+    "duration": 209,
+    "byAnalyzer": {
+      "security": 0,
+      "ai-smells": 1,
+      "conventions": 0
+    }
+  }
+]
