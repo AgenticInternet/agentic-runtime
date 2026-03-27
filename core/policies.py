@@ -5,11 +5,64 @@ Comprehensive policy definitions for configuring agents, teams, workflows,
 knowledge bases, reasoning, and observability.
 """
 
-from typing import List, Literal, Optional, Type
+from typing import Any, Dict, List, Literal, Optional, Type
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 
 from .durability.policy import DurableExecutionPolicy
+
+# =============================================================================
+# Model Provider Policies
+# =============================================================================
+
+ModelProvider = Literal[
+    "openrouter",
+    "openai",
+    "anthropic",
+    "google",
+    "ollama",
+    "groq",
+    "deepseek",
+    "mistral",
+    "xai",
+]
+
+
+class ModelProviderPolicy(BaseModel):
+    """Policy for LLM model provider selection.
+
+    Determines which Agno model adapter is used to construct the model
+    instance. Each provider maps to an ``agno.models.<name>`` module.
+    """
+
+    provider: ModelProvider = "openrouter"
+    api_key: Optional[SecretStr] = Field(default=None, exclude=True, repr=False)
+    base_url: Optional[str] = None
+
+    # Provider-specific parameters forwarded to the model constructor.
+    extra: Dict[str, Any] = Field(default_factory=dict)
+
+    model_config = {"extra": "forbid"}
+
+
+# =============================================================================
+# Storage Policies
+# =============================================================================
+
+
+class StoragePolicy(BaseModel):
+    """Policy for session / run state storage backend.
+
+    Currently supports SQLite. ``db_url`` is reserved for future Postgres
+    or other remote database support.
+    """
+
+    backend: Literal["sqlite"] = "sqlite"
+    db_file: str = Field(default="tmp/agents.db", min_length=1)
+    db_url: Optional[str] = None
+
+    model_config = {"extra": "forbid"}
+
 
 # =============================================================================
 # Context & Memory Policies
@@ -52,7 +105,7 @@ class CodeActPolicy(BaseModel):
     """Policy for code execution in sandboxed environments."""
 
     enabled: bool = True
-    sandbox: Literal["daytona"] = "daytona"
+    sandbox: Literal["daytona", "docker", "local"] = "daytona"
     max_iterations: int = Field(default=6, ge=1)
 
     # Enhanced Daytona features
@@ -536,10 +589,14 @@ class AgentSpec(BaseModel):
 
     # Model configuration
     model_id: str = Field(default="google/gemini-3-flash-preview", min_length=1)
+    model_provider: ModelProviderPolicy = Field(default_factory=ModelProviderPolicy)
 
     # Session management
     user_id: str = Field(default="user", min_length=1)
     session_id: Optional[str] = None
+
+    # Storage
+    storage: StoragePolicy = Field(default_factory=StoragePolicy)
 
     # Core policies
     context: ContextPolicy = Field(default_factory=ContextPolicy)

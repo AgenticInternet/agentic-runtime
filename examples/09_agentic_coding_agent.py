@@ -1,101 +1,80 @@
 """
 Agentic Coding Agent Example
 ----------------------------
-Agent with full coding capabilities: file operations, git, and code execution via Daytona.
-The agent operates entirely within an isolated Daytona sandbox, cloning GitHub repos
-and performing all file operations in that secure environment.
+Agent with sandboxed coding capabilities using the runtime's AgentSpec/build_agent flow.
+The agent operates within a Daytona sandbox, clones GitHub repos, and analyzes or modifies
+code inside that isolated environment.
 
 Requirements:
-- DAYTONA_API_KEY in .env file
-- OPENROUTER_API_KEY in .env file
+- DAYTONA_API_KEY in `.env`
+- OPENROUTER_API_KEY in `.env` (or update the provider policy below)
 """
 
+import argparse
 import os
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dotenv import load_dotenv
 
+from core import build_agent
+from core.policies import (
+    AgentSpec,
+    CodeActPolicy,
+    McpPolicy,
+    ModelProviderPolicy,
+    SystemPromptPolicy,
+)
+
 load_dotenv()
 
-from agno.agent import Agent
-from agno.models.openrouter import OpenRouter
-from agno.tools.daytona import DaytonaTools
+DEFAULT_REPO = "https://github.com/AgenticInternet/agentic-runtime.git"
+SANDBOX_PROMPT = """You are an expert software engineer working in an isolated execution environment.
+
+When solving coding tasks:
+1. Use the sandbox tools for shell commands and code execution.
+2. Clone repositories into `/home/daytona/repo` unless the user asks for a different path.
+3. Inspect the repository before making changes.
+4. Verify changes by running tests or targeted commands inside the sandbox.
+5. Explain your findings and changes clearly.
+"""
 
 
-def create_sandbox_coding_agent(
-    github_repo: str,
-    branch: str = "main",
-    model_id: str = "anthropic/claude-sonnet-4",
-) -> Agent:
-    """
-    Create an agentic coding agent that works entirely within a Daytona sandbox.
-    
-    The agent will:
-    1. Clone the specified GitHub repository into the sandbox
-    2. Perform all file operations (read, write, edit) in the sandbox
-    3. Execute code in the sandbox
-    4. Run git commands in the sandbox
-    
-    Args:
-        github_repo: GitHub repository URL (e.g., "https://github.com/owner/repo.git")
-        branch: Branch to clone (default: "main")
-        model_id: OpenRouter model ID
-    
-    Returns:
-        Configured Agent with DaytonaTools
-    """
-    daytona_tools = DaytonaTools(
-        persistent=True,
-        auto_stop_interval=60,
-        sandbox_env_vars={
-            "REPO_URL": github_repo,
-            "REPO_BRANCH": branch,
-        },
-    )
+def _github_repo() -> str:
+    return os.getenv("GITHUB_REPO_URL", DEFAULT_REPO)
 
-    agent = Agent(
+
+def _github_branch() -> str:
+    return os.getenv("GITHUB_REPO_BRANCH", "main")
+
+
+def create_sandbox_coding_agent(model_id: str = "anthropic/claude-sonnet-4"):
+    """Create a coding agent that executes through the runtime's Daytona policy."""
+    spec = AgentSpec(
         name="agentic_coding_agent",
-        model=OpenRouter(id=model_id),
-        tools=[daytona_tools],
-        instructions=[
-            "You are an expert software engineer working in an isolated Daytona sandbox.",
-            "Your workspace is at /home/daytona.",
-            "",
-            "## Setup Instructions",
-            f"1. Clone the repository: git clone -b {branch} {github_repo} /home/daytona/repo",
-            "2. Change to the repo directory: cd /home/daytona/repo",
-            "3. All file operations should be relative to /home/daytona/repo",
-            "",
-            "## Available Operations",
-            "- run_shell_command: Execute bash commands (git, ls, cat, grep, etc.)",
-            "- run_code: Execute Python code",
-            "- create_file: Create or update files",
-            "- read_file: Read file contents",
-            "- list_files: List directory contents",
-            "- delete_file: Delete files",
-            "",
-            "## Best Practices",
-            "- Always clone the repo first before any file operations",
-            "- Use git commands for version control (git status, git diff, git log)",
-            "- Test code changes by running them in the sandbox",
-            "- Show file contents before and after edits for verification",
-        ],
-        markdown=True,
+        model_id=model_id,
+        model_provider=ModelProviderPolicy(provider="openrouter"),
+        codeact=CodeActPolicy(
+            enabled=True,
+            sandbox="daytona",
+            sandbox_timeout_minutes=60,
+        ),
+        mcp=McpPolicy(enabled=False),
+        system_prompt=SystemPromptPolicy(
+            template="custom",
+            custom_template=SANDBOX_PROMPT,
+        ),
     )
+    return build_agent(spec)
 
-    return agent
+
+def _run_prompt(prompt: str) -> None:
+    agent = create_sandbox_coding_agent()
+    agent.print_response(prompt, stream=True)
 
 
-def main():
-    """Analyze a GitHub repository in an isolated sandbox."""
-    github_repo = os.getenv(
-        "GITHUB_REPO_URL",
-        "https://github.com/AgenticInternet/agentic-runtime.git"
-    )
-    branch = os.getenv("GITHUB_REPO_BRANCH", "main")
+def main() -> None:
+    """Analyze a GitHub repository in an isolated Daytona sandbox."""
+    github_repo = _github_repo()
+    branch = _github_branch()
 
     print("=" * 70)
     print("AGENTIC CODING AGENT - Daytona Sandbox")
@@ -105,13 +84,7 @@ def main():
     print("Environment: Isolated Daytona Sandbox (/home/daytona)")
     print("=" * 70)
 
-    agent = create_sandbox_coding_agent(
-        github_repo=github_repo,
-        branch=branch,
-        model_id="anthropic/claude-sonnet-4",
-    )
-
-    agent.print_response(
+    _run_prompt(
         f"""First, clone the repository and then analyze the codebase:
 
 1. Clone {github_repo} (branch: {branch}) into /home/daytona/repo
@@ -119,65 +92,44 @@ def main():
 3. Read the README.md to understand the project
 4. Show the recent git history (last 5 commits)
 5. Identify the main modules and their purposes
-6. Suggest any potential improvements or issues you notice""",
-        stream=True,
+6. Suggest any potential improvements or issues you notice"""
     )
 
 
-def example_refactoring():
-    """Example: Clone a repo and refactor code in the sandbox."""
-    github_repo = os.getenv(
-        "GITHUB_REPO_URL",
-        "https://github.com/AgenticInternet/agentic-runtime.git"
-    )
-
-    agent = create_sandbox_coding_agent(github_repo=github_repo)
-
-    agent.print_response(
+def example_refactoring() -> None:
+    """Clone a repo and perform a code review in the sandbox."""
+    github_repo = _github_repo()
+    _run_prompt(
         f"""Clone {github_repo} and perform a code review:
 
 1. Clone the repo to /home/daytona/repo
 2. Find all Python files in the project
 3. Analyze them for:
    - Code duplication
-   - Missing docstrings  
+   - Missing docstrings
    - Type hint improvements
-4. Provide a detailed report with specific file locations""",
-        stream=True,
+4. Provide a detailed report with specific file locations"""
     )
 
 
-def example_bug_fix():
-    """Example: Clone a repo and investigate/fix a bug."""
-    github_repo = os.getenv(
-        "GITHUB_REPO_URL",
-        "https://github.com/AgenticInternet/agentic-runtime.git"
-    )
-
-    agent = create_sandbox_coding_agent(github_repo=github_repo)
-
-    agent.print_response(
+def example_bug_fix() -> None:
+    """Clone a repo and investigate test failures in the sandbox."""
+    github_repo = _github_repo()
+    _run_prompt(
         f"""Clone {github_repo} and run tests:
 
 1. Clone the repo to /home/daytona/repo
 2. Check if there are any test files
 3. Install dependencies (look for pyproject.toml or requirements.txt)
 4. Run the test suite
-5. Report any failing tests and analyze potential causes""",
-        stream=True,
+5. Report any failing tests and analyze potential causes"""
     )
 
 
-def example_feature_implementation():
-    """Example: Clone a repo and implement a new feature."""
-    github_repo = os.getenv(
-        "GITHUB_REPO_URL",
-        "https://github.com/AgenticInternet/agentic-runtime.git"
-    )
-
-    agent = create_sandbox_coding_agent(github_repo=github_repo)
-
-    agent.print_response(
+def example_feature_implementation() -> None:
+    """Clone a repo and sketch a small feature in the sandbox."""
+    github_repo = _github_repo()
+    _run_prompt(
         f"""Clone {github_repo} and add a new utility function:
 
 1. Clone the repo to /home/daytona/repo
@@ -187,19 +139,14 @@ def example_feature_implementation():
    - A function to calculate directory sizes recursively
    - Proper docstrings and type hints
 4. Show the complete file content
-5. Run a quick test of the functions using run_code""",
-        stream=True,
+5. Run a quick test of the functions using the sandbox code runner"""
     )
 
 
-def example_interactive():
+def example_interactive() -> None:
     """Interactive coding session in the Daytona sandbox."""
-    github_repo = os.getenv(
-        "GITHUB_REPO_URL",
-        "https://github.com/AgenticInternet/agentic-runtime.git"
-    )
-
-    agent = create_sandbox_coding_agent(github_repo=github_repo)
+    github_repo = _github_repo()
+    agent = create_sandbox_coding_agent()
 
     print("=" * 70)
     print("INTERACTIVE CODING SESSION - Daytona Sandbox")
@@ -207,7 +154,6 @@ def example_interactive():
     print("Type 'quit' to exit")
     print("=" * 70)
 
-    # Initial setup: clone the repo
     agent.print_response(
         f"Clone {github_repo} to /home/daytona/repo and show the directory structure",
         stream=True,
@@ -216,21 +162,20 @@ def example_interactive():
     while True:
         try:
             user_input = input("\n> ").strip()
-            if user_input.lower() in ("quit", "exit", "q"):
-                print("Goodbye!")
-                break
-            if not user_input:
-                continue
-
-            agent.print_response(user_input, stream=True)
         except KeyboardInterrupt:
             print("\nGoodbye!")
             break
 
+        if user_input.lower() in ("quit", "exit", "q"):
+            print("Goodbye!")
+            break
+        if not user_input:
+            continue
+
+        agent.print_response(user_input, stream=True)
+
 
 if __name__ == "__main__":
-    import argparse
-
     parser = argparse.ArgumentParser(
         description="Agentic Coding Agent - Works in Daytona Sandbox with GitHub repos"
     )
@@ -255,7 +200,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Set repo from args if provided
     if args.repo:
         os.environ["GITHUB_REPO_URL"] = args.repo
     if args.branch:

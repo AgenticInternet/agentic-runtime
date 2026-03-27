@@ -4,8 +4,10 @@ Tests for Agentic Runtime Policies
 Comprehensive tests for all policy configurations.
 """
 
+from typing import Any, cast
+
 import pytest
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 
 from core.policies import (
     AgentRole,
@@ -16,9 +18,11 @@ from core.policies import (
     KnowledgePolicy,
     McpPolicy,
     McpServerConfig,
+    ModelProviderPolicy,
     ObservabilityPolicy,
     ReasoningPolicy,
     SkillsPolicy,
+    StoragePolicy,
     StructuredOutputPolicy,
     SystemPromptPolicy,
     TeamPolicy,
@@ -487,3 +491,144 @@ class TestCodingPolicy:
             CodingPolicy(max_search_results=0)
         with pytest.raises(ValidationError):
             CodingPolicy(max_search_results=2000)
+
+
+# =============================================================================
+# Model Provider Policy Tests
+# =============================================================================
+
+
+class TestModelProviderPolicy:
+    def test_default_values(self):
+        policy = ModelProviderPolicy()
+        assert policy.provider == "openrouter"
+        assert policy.api_key is None
+        assert policy.base_url is None
+        assert policy.extra == {}
+
+    def test_custom_provider(self):
+        policy = ModelProviderPolicy(provider="openai", api_key=SecretStr("sk-test"))
+        assert policy.provider == "openai"
+        assert policy.api_key is not None
+        assert policy.api_key.get_secret_value() == "sk-test"
+
+    def test_invalid_provider_rejected(self):
+        with pytest.raises(ValidationError):
+            ModelProviderPolicy(provider=cast(Any, "nonexistent"))
+
+    def test_api_key_excluded_from_dump(self):
+        policy = ModelProviderPolicy(provider="openai", api_key=SecretStr("sk-test"))
+        assert "api_key" not in policy.model_dump()
+
+    def test_extra_params(self):
+        policy = ModelProviderPolicy(extra={"timeout": 60})
+        assert policy.extra == {"timeout": 60}
+
+    def test_all_valid_providers(self):
+        for provider in [
+            "openrouter",
+            "openai",
+            "anthropic",
+            "google",
+            "ollama",
+            "groq",
+            "deepseek",
+            "mistral",
+            "xai",
+        ]:
+            policy = ModelProviderPolicy(provider=cast(Any, provider))
+            assert policy.provider == provider
+
+
+# =============================================================================
+# Storage Policy Tests
+# =============================================================================
+
+
+class TestStoragePolicy:
+    def test_default_values(self):
+        policy = StoragePolicy()
+        assert policy.backend == "sqlite"
+        assert policy.db_file == "tmp/agents.db"
+        assert policy.db_url is None
+
+    def test_custom_db_file(self):
+        policy = StoragePolicy(db_file="data/my.db")
+        assert policy.db_file == "data/my.db"
+
+    def test_invalid_backend_rejected(self):
+        with pytest.raises(ValidationError):
+            StoragePolicy(backend=cast(Any, "mongodb"))
+
+    def test_empty_db_file_rejected(self):
+        with pytest.raises(ValidationError):
+            StoragePolicy(db_file="")
+
+
+# =============================================================================
+# CodeAct Sandbox Backend Tests
+# =============================================================================
+
+
+class TestCodeActSandboxBackends:
+    def test_daytona_backend(self):
+        policy = CodeActPolicy(sandbox="daytona")
+        assert policy.sandbox == "daytona"
+
+    def test_local_backend(self):
+        policy = CodeActPolicy(sandbox="local")
+        assert policy.sandbox == "local"
+
+    def test_docker_backend(self):
+        policy = CodeActPolicy(sandbox="docker")
+        assert policy.sandbox == "docker"
+
+    def test_invalid_backend_rejected(self):
+        with pytest.raises(ValidationError):
+            CodeActPolicy(sandbox=cast(Any, "e2b"))
+
+
+# =============================================================================
+# AgentSpec Portability Tests
+# =============================================================================
+
+
+class TestAgentSpecPortability:
+    def test_default_model_provider_is_openrouter(self):
+        spec = AgentSpec()
+        assert spec.model_provider.provider == "openrouter"
+
+    def test_default_storage_is_sqlite(self):
+        spec = AgentSpec()
+        assert spec.storage.backend == "sqlite"
+
+    def test_spec_with_openai_provider(self):
+        spec = AgentSpec(
+            model_id="gpt-4o",
+            model_provider=ModelProviderPolicy(provider="openai"),
+        )
+        assert spec.model_provider.provider == "openai"
+        assert spec.model_id == "gpt-4o"
+
+    def test_spec_with_ollama_provider(self):
+        spec = AgentSpec(
+            model_id="llama3",
+            model_provider=ModelProviderPolicy(
+                provider="ollama",
+                base_url="http://localhost:11434",
+            ),
+        )
+        assert spec.model_provider.provider == "ollama"
+        assert spec.model_provider.base_url == "http://localhost:11434"
+
+    def test_spec_with_local_sandbox(self):
+        spec = AgentSpec(
+            codeact=CodeActPolicy(enabled=True, sandbox="local"),
+        )
+        assert spec.codeact.sandbox == "local"
+
+    def test_spec_with_custom_storage(self):
+        spec = AgentSpec(
+            storage=StoragePolicy(db_file="custom/path.db"),
+        )
+        assert spec.storage.db_file == "custom/path.db"
