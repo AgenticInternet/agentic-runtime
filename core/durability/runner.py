@@ -4,7 +4,6 @@ Durable Runner
 Wraps agent.run() to journal RunOutput and support resume.
 """
 
-import json
 from typing import Any, Optional
 from uuid import uuid4
 

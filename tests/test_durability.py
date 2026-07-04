@@ -4,9 +4,6 @@ Tests for Durable Execution
 Comprehensive tests for checkpoint, resume, and idempotency.
 """
 
-import json
-import os
-import tempfile
 
 import pytest
 from pydantic import ValidationError
@@ -22,8 +19,7 @@ from core.durability import (
     tool_idempotency_key,
 )
 from core.durability.policy import DurableExecutionPolicy
-from core.policies import AgentSpec, create_durable_coding_spec
-
+from core.policies import AgentSpec, CodeActPolicy, McpPolicy, create_durable_coding_spec
 
 # =============================================================================
 # Fixtures
@@ -545,7 +541,7 @@ class TestDurableRunner:
 
     def test_in_flight_resolution_fail(self, journal):
         """In-flight events should be marked failed when retry_on_partial_failure=False."""
-        event_id = journal.record_tool_start(
+        journal.record_tool_start(
             run_id="crash-run",
             idempotency_key="key-1",
             tool_name="search",
@@ -680,8 +676,9 @@ class TestDurableAgent:
 
 class TestFactoryDurability:
     def test_build_agent_with_durability(self, tmp_db_path):
-        from agno.db.sqlite import SqliteDb
         from pathlib import Path
+
+        from agno.db.sqlite import SqliteDb
 
         Path("tmp").mkdir(parents=True, exist_ok=True)
         db = SqliteDb(db_file="tmp/agents.db")
@@ -701,9 +698,10 @@ class TestFactoryDurability:
         assert isinstance(agent, DurableAgent)
 
     def test_build_agent_without_durability(self):
+        from pathlib import Path
+
         from agno.agent import Agent
         from agno.db.sqlite import SqliteDb
-        from pathlib import Path
 
         Path("tmp").mkdir(parents=True, exist_ok=True)
         db = SqliteDb(db_file="tmp/agents.db")
@@ -734,8 +732,3 @@ class TestFactoryDurability:
         assert spec.durability.enabled is False
         # Should not break existing code
         assert spec.durability.schema_version == 1
-
-
-# Need to import these for factory tests
-from core.durability.policy import DurableExecutionPolicy as _DEP  # noqa: F811
-from core.policies import CodeActPolicy, McpPolicy  # noqa: F811

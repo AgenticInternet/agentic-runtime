@@ -97,7 +97,7 @@ def main():
         2. Key players (companies and research institutions)
         3. Practical applications emerging
         4. Challenges remaining
-        
+
         Provide a comprehensive but concise summary.
         """,
         stream=True,

@@ -18,7 +18,6 @@ from sqlalchemy import (
     Table,
     Text,
     UniqueConstraint,
-    text,
 )
 from sqlalchemy.engine import Engine
 
