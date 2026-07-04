@@ -9,12 +9,13 @@ description = "State-of-the-art agentic runtime with Agno, OpenRouter, Daytona s
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "agno>=1.0.0",
+    "agno>=2.5.8",
     "agno-storage>=1.0",
     "daytona>=0.128.1",
     "daytona-sdk>=0.1.0",
     "mcp>=1.25.0",
     "openai>=2.14.0",
+    "openpyxl>=3.1.5",
     "pydantic>=2.6.0",
     "pydantic-settings>=2.2.1",
     "python-dotenv>=1.0.0",
@@ -54,6 +55,9 @@ target-version = "py310"
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
 ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/*.py" = ["E402"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["core"]

@@ -5,9 +5,64 @@ Comprehensive policy definitions for configuring agents, teams, workflows,
 knowledge bases, reasoning, and observability.
 """
 
-from typing import List, Literal, Optional, Type
+from typing import Any, Dict, List, Literal, Optional, Type
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
+
+from .durability.policy import DurableExecutionPolicy
+
+# =============================================================================
+# Model Provider Policies
+# =============================================================================
+
+ModelProvider = Literal[
+    "openrouter",
+    "openai",
+    "anthropic",
+    "google",
+    "ollama",
+    "groq",
+    "deepseek",
+    "mistral",
+    "xai",
+]
+
+
+class ModelProviderPolicy(BaseModel):
+    """Policy for LLM model provider selection.
+
+    Determines which Agno model adapter is used to construct the model
+    instance. Each provider maps to an ``agno.models.<name>`` module.
+    """
+
+    provider: ModelProvider = "openrouter"
+    api_key: Optional[SecretStr] = Field(default=None, exclude=True, repr=False)
+    base_url: Optional[str] = None
+
+    # Provider-specific parameters forwarded to the model constructor.
+    extra: Dict[str, Any] = Field(default_factory=dict)
+
+    model_config = {"extra": "forbid"}
+
+
+# =============================================================================
+# Storage Policies
+# =============================================================================
+
+
+class StoragePolicy(BaseModel):
+    """Policy for session / run state storage backend.
+
+    Currently supports SQLite. ``db_url`` is reserved for future Postgres
+    or other remote database support.
+    """
+
+    backend: Literal["sqlite"] = "sqlite"
+    db_file: str = Field(default="tmp/agents.db", min_length=1)
+    db_url: Optional[str] = None
+
+    model_config = {"extra": "forbid"}
+
 
 # =============================================================================
 # Context & Memory Policies
@@ -50,7 +105,7 @@ class CodeActPolicy(BaseModel):
     """Policy for code execution in sandboxed environments."""
 
     enabled: bool = True
-    sandbox: Literal["daytona"] = "daytona"
+    sandbox: Literal["daytona", "docker", "local"] = "daytona"
     max_iterations: int = Field(default=6, ge=1)
 
     # Enhanced Daytona features
@@ -137,9 +192,7 @@ class KnowledgePolicy(BaseModel):
     vector_db: Literal["lancedb", "pgvector", "chroma", "qdrant"] = Field(
         default="lancedb", description="Vector database backend"
     )
-    vector_db_uri: str = Field(
-        default="tmp/lancedb", description="URI/path for vector database"
-    )
+    vector_db_uri: str = Field(default="tmp/lancedb", description="URI/path for vector database")
     table_name: str = Field(default="knowledge", min_length=1)
 
     # Embedder configuration
@@ -215,14 +268,10 @@ class CodingPolicy(BaseModel):
     enabled: bool = False
 
     # Workspace configuration
-    workspace_root: str = Field(
-        default=".", description="Root directory for file operations"
-    )
+    workspace_root: str = Field(default=".", description="Root directory for file operations")
 
     # File operations
-    allow_write: bool = Field(
-        default=True, description="Allow file write/edit operations"
-    )
+    allow_write: bool = Field(default=True, description="Allow file write/edit operations")
     max_file_size_kb: int = Field(
         default=512, ge=1, le=10240, description="Maximum file size to read (KB)"
     )
@@ -232,8 +281,7 @@ class CodingPolicy(BaseModel):
 
     # File patterns
     include_patterns: List[str] = Field(
-        default_factory=lambda: ["**/*"],
-        description="Glob patterns for files to include"
+        default_factory=lambda: ["**/*"], description="Glob patterns for files to include"
     )
     exclude_patterns: List[str] = Field(
         default_factory=lambda: [
@@ -246,16 +294,12 @@ class CodingPolicy(BaseModel):
             "**/dist/**",
             "**/build/**",
         ],
-        description="Glob patterns for files to exclude"
+        description="Glob patterns for files to exclude",
     )
 
     # Git integration
-    enable_git: bool = Field(
-        default=True, description="Enable git tools"
-    )
-    allow_git_write: bool = Field(
-        default=False, description="Allow git add/commit operations"
-    )
+    enable_git: bool = Field(default=True, description="Enable git tools")
+    allow_git_write: bool = Field(default=False, description="Allow git add/commit operations")
 
     # Safety settings
     require_confirmation_for_destructive: bool = Field(
@@ -266,6 +310,44 @@ class CodingPolicy(BaseModel):
     )
 
     model_config = {"extra": "forbid"}
+
+
+# =============================================================================
+# Skills Policies
+# =============================================================================
+
+
+class SkillsPolicy(BaseModel):
+    """Policy for loading local Agno skills."""
+
+    enabled: bool = False
+    paths: List[str] = Field(
+        default_factory=list,
+        description="Skill directories or individual skill folders to load",
+    )
+    validate_on_load: bool = Field(
+        default=True,
+        description="Validate SKILL.md frontmatter and structure when loading",
+    )
+
+    model_config = {"extra": "forbid"}
+
+    @field_validator("paths")
+    @classmethod
+    def _normalize_paths(cls, value: List[str]) -> List[str]:
+        normalized_paths: List[str] = []
+        for path in value:
+            stripped_path = path.strip()
+            if not stripped_path:
+                raise ValueError("skills.paths entries must be non-empty")
+            normalized_paths.append(stripped_path)
+        return normalized_paths
+
+    @model_validator(mode="after")
+    def _require_paths_if_enabled(self) -> "SkillsPolicy":
+        if self.enabled and not self.paths:
+            raise ValueError("skills.paths must contain at least one path when skills are enabled")
+        return self
 
 
 # =============================================================================
@@ -354,9 +436,7 @@ class TeamPolicy(BaseModel):
     enabled: bool = False
 
     # Team composition
-    members: List[AgentRole] = Field(
-        default_factory=list, description="Agent roles in the team"
-    )
+    members: List[AgentRole] = Field(default_factory=list, description="Agent roles in the team")
 
     # Coordination settings
     mode: Literal["coordinate", "route", "collaborate"] = Field(
@@ -404,9 +484,7 @@ class WorkflowStep(BaseModel):
     agent_name: Optional[str] = Field(
         default=None, description="Name of agent to execute this step"
     )
-    team_name: Optional[str] = Field(
-        default=None, description="Name of team to execute this step"
-    )
+    team_name: Optional[str] = Field(default=None, description="Name of team to execute this step")
     function_name: Optional[str] = Field(
         default=None, description="Name of function to execute this step"
     )
@@ -447,9 +525,7 @@ class WorkflowPolicy(BaseModel):
     parallel_execution: bool = Field(
         default=False, description="Execute independent steps in parallel"
     )
-    stop_on_failure: bool = Field(
-        default=True, description="Stop workflow on step failure"
-    )
+    stop_on_failure: bool = Field(default=True, description="Stop workflow on step failure")
 
     model_config = {"extra": "forbid"}
 
@@ -471,20 +547,14 @@ class SystemPromptPolicy(BaseModel):
     )
 
     # Dynamic sections
-    add_datetime: bool = Field(
-        default=True, description="Add current datetime to context"
-    )
-    add_tool_descriptions: bool = Field(
-        default=True, description="Add tool descriptions to prompt"
-    )
+    add_datetime: bool = Field(default=True, description="Add current datetime to context")
+    add_tool_descriptions: bool = Field(default=True, description="Add tool descriptions to prompt")
     add_knowledge_context: bool = Field(
         default=True, description="Add retrieved knowledge to prompt"
     )
 
     # Persona
-    persona: Optional[str] = Field(
-        default=None, description="Agent persona/role description"
-    )
+    persona: Optional[str] = Field(default=None, description="Agent persona/role description")
     tone: Literal["professional", "friendly", "technical", "concise"] = Field(
         default="professional", description="Response tone"
     )
@@ -519,10 +589,14 @@ class AgentSpec(BaseModel):
 
     # Model configuration
     model_id: str = Field(default="google/gemini-3-flash-preview", min_length=1)
+    model_provider: ModelProviderPolicy = Field(default_factory=ModelProviderPolicy)
 
     # Session management
     user_id: str = Field(default="user", min_length=1)
     session_id: Optional[str] = None
+
+    # Storage
+    storage: StoragePolicy = Field(default_factory=StoragePolicy)
 
     # Core policies
     context: ContextPolicy = Field(default_factory=ContextPolicy)
@@ -534,6 +608,7 @@ class AgentSpec(BaseModel):
     mcp: McpPolicy = Field(default_factory=McpPolicy)
     knowledge: KnowledgePolicy = Field(default_factory=KnowledgePolicy)
     reasoning: ReasoningPolicy = Field(default_factory=ReasoningPolicy)
+    skills: SkillsPolicy = Field(default_factory=SkillsPolicy)
     structured_output: StructuredOutputPolicy = Field(default_factory=StructuredOutputPolicy)
     coding: CodingPolicy = Field(default_factory=CodingPolicy)
 
@@ -543,6 +618,9 @@ class AgentSpec(BaseModel):
 
     # Observability
     observability: ObservabilityPolicy = Field(default_factory=ObservabilityPolicy)
+
+    # Durability
+    durability: DurableExecutionPolicy = Field(default_factory=DurableExecutionPolicy)
 
     # Structured output schema (set programmatically)
     # This allows passing a Pydantic model class for structured outputs
@@ -642,7 +720,7 @@ def create_coding_spec(
 ) -> AgentSpec:
     """
     Create an agent spec optimized for agentic coding tasks.
-    
+
     Args:
         model_id: Model to use (default: Claude Sonnet for coding)
         workspace_root: Root directory for file operations
@@ -650,7 +728,7 @@ def create_coding_spec(
         allow_write: Allow file write operations
         allow_git_write: Allow git add/commit operations
         max_iterations: Max iterations for code execution
-    
+
     Returns:
         AgentSpec configured for coding tasks
     """
@@ -675,4 +753,47 @@ def create_coding_spec(
         ),
         system_prompt=SystemPromptPolicy(template="codeact"),
         mcp=McpPolicy(enabled=False),
+    )
+
+
+def create_durable_coding_spec(
+    model_id: str = "anthropic/claude-sonnet-4",
+    workspace_root: str = ".",
+    journal_db_file: Optional[str] = None,
+    allow_write: bool = True,
+    allow_git_write: bool = False,
+) -> AgentSpec:
+    """
+    Create an agent spec for durable coding with checkpoint and resume.
+
+    Combines the coding preset with durable execution enabled.
+
+    Args:
+        model_id: Model to use (default: Claude Sonnet for coding)
+        workspace_root: Root directory for file operations
+        journal_db_file: Path to journal DB (None = share agent's db)
+        allow_write: Allow file write operations
+        allow_git_write: Allow git add/commit operations
+
+    Returns:
+        AgentSpec configured for durable coding tasks
+    """
+    return AgentSpec(
+        name="durable_coding_agent",
+        model_id=model_id,
+        codeact=CodeActPolicy(enabled=False),
+        coding=CodingPolicy(
+            enabled=True,
+            workspace_root=workspace_root,
+            allow_write=allow_write,
+            enable_git=True,
+            allow_git_write=allow_git_write,
+        ),
+        reasoning=ReasoningPolicy(enabled=True, mode="extended"),
+        system_prompt=SystemPromptPolicy(template="codeact"),
+        mcp=McpPolicy(enabled=False),
+        durability=DurableExecutionPolicy(
+            enabled=True,
+            journal_db_file=journal_db_file,
+        ),
     )

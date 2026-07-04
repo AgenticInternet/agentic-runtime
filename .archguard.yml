@@ -1,0 +1,27 @@
+# Architecture Guardian — project config
+# Docs: https://github.com/ysfAskri/archguardian
+version: 1
+languages: [python]
+include: ["**/*"]
+exclude: ["**/*.test.*", "**/*.spec.*", "**/node_modules/**", "**/dist/**"]
+
+severity:
+  failOn: error
+  maxWarnings: 20
+
+analyzers:
+  security:
+    enabled: true
+    severity: error
+  aiSmells:
+    enabled: true
+    severity: warning
+    commentRatio: 0.4
+  conventions:
+    enabled: true
+    severity: warning
+    naming:
+      functions: camelCase
+      classes: PascalCase
+      constants: UPPER_SNAKE
+      files: kebab-case

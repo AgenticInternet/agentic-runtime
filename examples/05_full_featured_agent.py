@@ -58,24 +58,24 @@ def main():
     agent.print_response(
         """
         I need you to help me with a complete data science workflow:
-        
+
         1. Generate synthetic customer data (500 records) with:
            - customer_id, name, email, signup_date, plan_type, monthly_spend
-        
+
         2. Perform exploratory data analysis:
            - Summary statistics
            - Distribution of plan types
            - Spend patterns by plan type
-        
+
         3. Build a simple prediction:
            - Predict if a customer is high-value (spend > $100)
            - Use logistic regression
            - Report accuracy
-        
+
         4. Create visualizations:
            - Histogram of monthly spend
            - Box plot of spend by plan type
-        
+
         Save all outputs and provide a summary report.
         """,
         stream=True,

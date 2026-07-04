@@ -1,11 +1,12 @@
 # Agentic Runtime
 
-A state-of-the-art agentic runtime built on [Agno](https://github.com/agno-agi/agno) framework with OpenRouter, Daytona sandbox execution, MCP support, RAG, multi-agent teams, and more.
+A state-of-the-art agentic runtime built on the [Agno](https://github.com/agno-agi/agno) framework with portable model providers, configurable sandbox execution, MCP support, RAG, multi-agent teams, and more.
 
 ## Features
 
 - **Agentic Coding** - File operations, code search, and git integration for autonomous coding tasks
-- **Code Execution** - Secure sandbox via Daytona with stateful code interpreter
+- **Portable Model Providers** - Switch between OpenRouter, OpenAI, Anthropic, Google, Ollama, Groq, DeepSeek, Mistral, and xAI via policy
+- **Code Execution** - Configurable sandbox policy with Daytona support today and explicit local or Docker modes
 - **Multi-Agent Teams** - Coordinate multiple specialized agents with leader delegation
 - **Workflows** - Orchestrate complex multi-step tasks with dependencies
 - **Knowledge Base (RAG)** - Vector database integration with LanceDB, PgVector, Chroma, Qdrant
@@ -19,7 +20,7 @@ A state-of-the-art agentic runtime built on [Agno](https://github.com/agno-agi/a
 ```bash
 # Clone and install
 cp .env.example .env
-# Fill in your API keys (OPENROUTER_API_KEY, DAYTONA_API_KEY)
+# Fill in the keys for the provider/sandbox you plan to use
 
 # Basic installation
 uv sync
@@ -41,9 +42,35 @@ uv sync --extra dev
 ```python
 from core import build_agent, AgentSpec
 
-# Uses default model: google/gemini-3-flash-preview
+# Defaults: OpenRouter provider + google/gemini-3-flash-preview model
 agent = build_agent(AgentSpec())
 agent.print_response("What is the capital of France?", stream=True)
+```
+
+### Provider Portability
+
+```python
+from core import AgentSpec, build_agent
+from core.policies import ModelProviderPolicy
+
+# Direct OpenAI
+openai_agent = build_agent(
+    AgentSpec(
+        model_id="gpt-4o",
+        model_provider=ModelProviderPolicy(provider="openai"),
+    )
+)
+
+# Local Ollama
+ollama_agent = build_agent(
+    AgentSpec(
+        model_id="llama3.1",
+        model_provider=ModelProviderPolicy(
+            provider="ollama",
+            base_url="http://localhost:11434",
+        ),
+    )
+)
 ```
 
 ### Code Execution Agent
@@ -108,25 +135,29 @@ agent = build_agent(spec)
 agent.print_response("Solve this step by step: ...", stream=True)
 ```
 
-### Agentic Coding Agent (Daytona Sandbox)
+### Agentic Coding Agent (Policy-Driven Sandbox)
 
 ```python
-from agno.agent import Agent
-from agno.models.openrouter import OpenRouter
-from agno.tools.daytona import DaytonaTools
+from core import AgentSpec, build_agent
+from core.policies import CodeActPolicy, ModelProviderPolicy, SystemPromptPolicy
 
-# Create an agent that works entirely in an isolated Daytona sandbox
-agent = Agent(
-    name="coding_agent",
-    model=OpenRouter(id="anthropic/claude-sonnet-4"),
-    tools=[DaytonaTools(persistent=True, auto_stop_interval=60)],
-    instructions=[
-        "You work in a Daytona sandbox at /home/daytona.",
-        "Clone repos with: git clone <url> /home/daytona/repo",
-    ],
+agent = build_agent(
+    AgentSpec(
+        name="coding_agent",
+        model_id="anthropic/claude-sonnet-4",
+        model_provider=ModelProviderPolicy(provider="openrouter"),
+        codeact=CodeActPolicy(
+            enabled=True,
+            sandbox="daytona",
+            sandbox_timeout_minutes=60,
+        ),
+        system_prompt=SystemPromptPolicy(
+            template="custom",
+            custom_template="You work in a sandbox at /home/daytona. Clone repos with: git clone <url> /home/daytona/repo",
+        ),
+    )
 )
 
-# Agent clones repo and analyzes code in the sandbox
 agent.print_response(
     "Clone https://github.com/user/repo.git, list the structure, and analyze the README",
     stream=True,
@@ -145,8 +176,10 @@ from core import (
     CodeActPolicy,
     CodingPolicy,
     McpPolicy,
+    ModelProviderPolicy,
     KnowledgePolicy,
     ReasoningPolicy,
+    StoragePolicy,
     TeamPolicy,
     WorkflowPolicy,
     ObservabilityPolicy,
@@ -156,6 +189,16 @@ from core import (
 spec = AgentSpec(
     name="my_agent",
     model_id="google/gemini-3-flash-preview",
+
+    # Model provider
+    model_provider=ModelProviderPolicy(
+        provider="openrouter",
+    ),
+
+    # Runtime storage
+    storage=StoragePolicy(
+        db_file="tmp/agents.db",
+    ),
     
     # Context and memory
     context=ContextPolicy(
@@ -163,9 +206,10 @@ spec = AgentSpec(
         num_history_runs=5,
     ),
     
-    # Code execution (Daytona sandbox)
+    # Code execution
     codeact=CodeActPolicy(
         enabled=True,
+        sandbox="daytona",  # daytona, local, docker
         max_iterations=10,
         extract_charts=True,
     ),
@@ -199,6 +243,13 @@ spec = AgentSpec(
 )
 ```
 
+### Portability Notes
+
+- `model_provider.provider` defaults to `openrouter` for backward compatibility
+- `codeact.sandbox` defaults to `daytona`; `local` disables sandbox tools and `docker` is reserved for future implementation
+- `storage.db_file` defaults to `tmp/agents.db`
+- `storage.db_url` is reserved for future remote database support and currently raises if configured
+
 ## Presets
 
 Use convenience functions for common configurations:
@@ -215,7 +266,7 @@ from core import (
 # Basic agent (no code execution)
 spec = create_basic_spec()
 
-# Code execution agent (Daytona sandbox)
+# Code execution agent (Daytona by default)
 spec = create_codeact_spec(max_iterations=10)
 
 # Research agent with RAG and extended reasoning
@@ -248,20 +299,21 @@ See the `examples/` directory for complete examples:
 | Example | Description |
 |---------|-------------|
 | `01_basic_agent.py` | Simple Q&A agent |
-| `02_code_execution_agent.py` | Code execution with Daytona |
+| `02_code_execution_agent.py` | Code execution with policy-driven sandbox config |
 | `03_data_analysis_agent.py` | Data analysis and charts |
 | `04_mcp_agent.py` | MCP tool integration |
 | `05_full_featured_agent.py` | All features combined |
 | `06_conversational_session.py` | Interactive chat |
 | `07_structured_output.py` | Pydantic-validated responses |
 | `08_multi_agent_team.py` | Multi-agent coordination |
-| `09_agentic_coding_agent.py` | Agentic coding with Daytona sandbox |
+| `09_agentic_coding_agent.py` | Agentic coding through `AgentSpec` + Daytona sandbox |
+| `10_xlsx_skill_agent.py` | Validate a workbook with the xlsx skill |
 
 ```bash
 # Run basic example
 uv run python examples/01_basic_agent.py
 
-# Run agentic coding agent (works in Daytona sandbox with GitHub repos)
+# Run agentic coding agent (uses the runtime's policy-driven Daytona path)
 uv run python examples/09_agentic_coding_agent.py --mode analyze
 uv run python examples/09_agentic_coding_agent.py --mode refactor
 uv run python examples/09_agentic_coding_agent.py --mode test
@@ -270,7 +322,13 @@ uv run python examples/09_agentic_coding_agent.py --mode interactive
 
 # Use a custom GitHub repository
 uv run python examples/09_agentic_coding_agent.py --repo https://github.com/owner/repo.git --branch main
+
+# Prepare and run the xlsx skill example
+uv run python examples/10_xlsx_skill_agent.py --prepare-only
+uv run python examples/10_xlsx_skill_agent.py
 ```
+
+The xlsx skill example expects the skill at `~/.agents/skills/xlsx` by default and looks for LibreOffice via `soffice`, `SOFFICE_BIN`, or `--soffice-path`.
 
 ## Testing
 
@@ -290,16 +348,17 @@ uv run pytest tests/test_policies.py
 ```
 core/
 ├── __init__.py          # Public API exports
-├── factory.py           # build_agent, build_team, build_workflow
+├── factory.py           # build_agent, build_team, build_workflow, provider/storage resolution
 ├── policies.py          # All configuration policies & presets
 ├── context_manager.py   # Context management utilities
 ├── settings.py          # Environment settings
 ├── tool_runtime.py      # Tool runtime utilities
 ├── prompts/
-│   └── system.py        # System prompt templates
+│   └── system.py        # System prompt templates with backend-aware code execution text
 └── tools/
     ├── local.py         # Local utility tools
     ├── daytona.py       # Daytona sandbox integration
+    ├── sandbox.py       # Sandbox backend dispatcher
     ├── coding.py        # File operations & code search
     ├── git.py           # Git integration tools
     ├── mcp.py           # MCP tool integration
@@ -333,7 +392,7 @@ core/
 | `git_add` | Stage files (if `allow_git_write=True`) |
 | `git_commit` | Create commits (if `allow_git_write=True`) |
 
-### Daytona Sandbox Operations
+### Sandbox Operations
 
 | Tool | Description |
 |------|-------------|
@@ -344,12 +403,17 @@ core/
 | `list_files` | List directory contents in sandbox |
 | `delete_file` | Delete files in sandbox |
 
+These tools are available when `codeact.enabled=True` and `codeact.sandbox="daytona"`.
+
 ## Environment Variables
 
 ```bash
-OPENROUTER_API_KEY=...    # Required for LLM access
-DAYTONA_API_KEY=...       # Required for sandbox execution
-DAYTONA_API_URL=...       # Optional: custom Daytona endpoint
+OPENROUTER_API_KEY=...    # Use when model_provider.provider="openrouter"
+OPENAI_API_KEY=...        # Use when model_provider.provider="openai"
+ANTHROPIC_API_KEY=...     # Use when model_provider.provider="anthropic"
+GOOGLE_API_KEY=...        # Use when model_provider.provider="google"
+DAYTONA_API_KEY=...       # Required when codeact.sandbox="daytona"
+DAYTONA_API_URL=...       # Optional custom Daytona endpoint
 ```
 
 ## License

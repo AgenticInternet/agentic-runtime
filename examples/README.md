@@ -34,6 +34,8 @@ cp .env.example .env
 | 06 | `06_conversational_session.py` | Session | Interactive chat |
 | 07 | `07_structured_output.py` | Structured | Validated Pydantic responses |
 | 08 | `08_multi_agent_team.py` | Teams | Multi-agent coordination |
+| 09 | `09_agentic_coding_agent.py` | Coding | Agentic coding in Daytona |
+| 10 | `10_xlsx_skill_agent.py` | Skills | Validate a workbook with the xlsx skill |
 
 ## Running Examples
 
@@ -43,8 +45,12 @@ uv run python examples/01_basic_agent.py
 uv run python examples/02_code_execution_agent.py
 uv run python examples/07_structured_output.py
 uv run python examples/08_multi_agent_team.py
+uv run python examples/10_xlsx_skill_agent.py --prepare-only
+uv run python examples/10_xlsx_skill_agent.py
 # etc.
 ```
+
+Set `XLSX_SKILL_PATH` or pass `--skill-path` if your xlsx skill is not installed at `~/.agents/skills/xlsx`. For LibreOffice, the example checks `soffice` on `PATH`, `SOFFICE_BIN`, or `--soffice-path`.
 
 ## New Features (v0.2.0)
 

@@ -39,7 +39,7 @@ def main():
         - product (randomly chosen from: Widget, Gadget, Gizmo)
         - quantity (1-50)
         - price (10.0-100.0)
-        
+
         Then analyze:
         1. Total revenue by product
         2. Monthly sales trend

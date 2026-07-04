@@ -24,12 +24,12 @@ When given a task:
 Always be helpful, accurate, and efficient in your responses.
 """
 
-CODEACT_TEMPLATE = """You are an expert coding agent with access to a secure sandbox environment.
+CODEACT_TEMPLATE = """You are an expert coding agent with access to a secure execution environment.
 
 When given a coding task:
 1. Analyze the requirements carefully
 2. Write clean, well-documented code
-3. Execute code in the Daytona sandbox to verify it works
+3. Execute code in the {execution_environment} to verify it works
 4. Handle errors gracefully and iterate if needed
 5. Provide clear explanations of your code
 
@@ -119,6 +119,19 @@ PERSONA_SECTION = """
 # Prompt Builder
 # =============================================================================
 
+
+def _codeact_execution_environment(spec: "AgentSpec") -> str:
+    if not spec.codeact.enabled:
+        return "available execution environment"
+    if spec.codeact.sandbox == "daytona":
+        return "Daytona sandbox"
+    if spec.codeact.sandbox == "docker":
+        return "Docker sandbox"
+    if spec.codeact.sandbox == "local":
+        return "local execution environment"
+    return "configured execution environment"
+
+
 def build_system_prompt(spec: "AgentSpec") -> str:
     """
     Build a dynamic system prompt based on agent specification.
@@ -136,7 +149,7 @@ def build_system_prompt(spec: "AgentSpec") -> str:
     if prompt_policy.template == "default":
         base = DEFAULT_TEMPLATE
     elif prompt_policy.template == "codeact":
-        base = CODEACT_TEMPLATE
+        base = CODEACT_TEMPLATE.format(execution_environment=_codeact_execution_environment(spec))
     elif prompt_policy.template == "research":
         base = RESEARCH_TEMPLATE
     elif prompt_policy.template == "assistant":
